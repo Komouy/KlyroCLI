@@ -85,6 +85,7 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
                     import tty, termios, select
                     fd = sys.stdin.fileno()
                     old_settings = termios.tcgetattr(fd)
+                    _echoed = False
                     try:
                         tty.setraw(fd)
                         ch = sys.stdin.read(1)
@@ -102,13 +103,21 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
                             raise KeyboardInterrupt()
                         elif ch in ('k', 'w', 'K', 'W'):  # vim/WASD up
                             key = 'up'
+                            _echoed = True
                         elif ch in ('j', 's', 'J', 'S'):  # vim/WASD down
                             key = 'down'
+                            _echoed = True
                         elif ch.isdigit() and 1 <= int(ch) <= num_options:
                             # Number shortcut: press 1-9 to jump directly
                             key = f'num_{ch}'
+                            _echoed = True
                     finally:
                         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                        # Erase any character that might have been echoed by
+                        # the terminal emulator (common in Termux soft keyboard)
+                        if _echoed:
+                            sys.stdout.write('\r\033[K')
+                            sys.stdout.flush()
             except (KeyboardInterrupt, SystemExit):
                 clear_menu()
                 raise KeyboardInterrupt()
