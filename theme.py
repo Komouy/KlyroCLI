@@ -172,6 +172,44 @@ def strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
 
 
+def clip_line(text: str, max_width: int) -> str:
+    """
+    Truncate an ANSI-colored line to a maximum visible width, preserving
+    escape sequences and closing colors. Guarantees each logical line
+    occupies a single physical row — essential for cursor-based redraws
+    (menus, banners, shimmer sweeps) where a wrapped row would desync
+    the line arithmetic and overwrite unrelated UI.
+    Handles multi-line strings by clipping every line.
+    """
+    if max_width < 4:
+        max_width = 4
+    out_lines = []
+    for line in text.split("\n"):
+        if display_width(line) <= max_width:
+            out_lines.append(line)
+            continue
+        out, w = [], 0
+        tokens = re.split(r"(\033\[[0-9;]*m)", line)
+        for tok in tokens:
+            if not tok:
+                continue
+            if _ANSI_RE.fullmatch(tok):
+                out.append(tok)
+                continue
+            for ch in tok:
+                cw = display_width(ch)
+                if w + cw > max_width:
+                    break
+                out.append(ch)
+                w += cw
+            else:
+                continue
+            break
+        out.append(RESET)
+        out_lines.append("".join(out))
+    return "\n".join(out_lines)
+
+
 def shimmer_gradient(
     text: str,
     start_rgb: tuple = (56, 189, 248),
@@ -373,7 +411,14 @@ class UI:
 
     # --- FRAMED COMPONENT CARDS ---
     @staticmethod
+    def _fit_width(box_width: int) -> int:
+        """Cap a requested card width to the real terminal width."""
+        term_cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+        return max(8, min(box_width, term_cols - 6))
+
+    @staticmethod
     def card_start(title: str, subtitle: str = None, border_color: str = FROST_DARK, box_width: int = 60):
+        box_width = UI._fit_width(box_width)
         title_str = f"● {title}"
         if subtitle:
             title_str += f" {subtitle}"
@@ -384,6 +429,7 @@ class UI:
     def card_line(body: str, marker: str = " ", color: str = "", border_color: str = FROST_DARK, box_width: int = 60):
         """Body row inside the card: wraps text and closes the right border so
         the frame reads as a full box. `marker` colors the leading glyph."""
+        box_width = UI._fit_width(box_width)
         inner = max(8, box_width - 2)
         chunks = wrap_by_display_width(body, inner - 1)
         for idx, chunk in enumerate(chunks):
@@ -395,6 +441,7 @@ class UI:
 
     @staticmethod
     def card_end(border_color: str = FROST_DARK, box_width: int = 60):
+        box_width = UI._fit_width(box_width)
         print(f"  {border_color}╰{'─' * box_width}╯{RESET}\n")
 
 

@@ -2,8 +2,14 @@ import time
 from file_manager import _parse_fence_line, _filename_from_fence_info
 from theme import (
     FROST_WHITE, FROST_CYAN, FROST_DARK, FROST_ICE, FROST_GHOST, FROST_MINT,
-    RESET, BOLD, shimmer_text,
+    RESET, BOLD, shimmer_text, clip_line,
 )
+import shutil
+
+
+def _clip(s: str) -> str:
+    """Keep in-place-rewritten lines to a single physical row."""
+    return clip_line(s, shutil.get_terminal_size(fallback=(80, 24)).columns - 1)
 
 # ANSI: carriage-return + erase entire line (overwrites placeholder)
 _ERASE_LINE = "\r\033[2K"
@@ -174,7 +180,7 @@ class CodeBlockBuffer:
                 # Write placeholder WITHOUT \n so cursor stays on same line;
                 # \r allows the reveal step to overwrite it cleanly.
                 if self._live_counter:
-                    return f"  {shimmer_text('⚡ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r"
+                    return _clip(f"  {shimmer_text('⚡ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r")
                 return f"  {FROST_DARK}⏳ Generating {lang}...{RESET}\r"
 
             # ── We are inside a fence ─────────────────────────────
@@ -212,7 +218,7 @@ class CodeBlockBuffer:
                         self._placeholder_shown = True
                         lang = (info.split(":")[0] if info else "code") or "code"
                         if self._live_counter:
-                            result_parts.append(f"  {shimmer_text('⚡ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r")
+                            result_parts.append(_clip(f"  {shimmer_text('⚡ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r"))
                         else:
                             result_parts.append(f"  {FROST_DARK}⏳ Generating {lang}...{RESET}\r")
                         return "".join(result_parts)
@@ -238,7 +244,7 @@ class CodeBlockBuffer:
                     "⚡ Generating",
                     center=((self._frame_idx % 14) / 10.0) - 0.2,
                 )
-                return f"\r  {FROST_ICE}{spin}{RESET} {band} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[{count} lines]{RESET}\033[K"
+                return _clip(f"\r  {FROST_ICE}{spin}{RESET} {band} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[{count} lines]{RESET}\033[K")
             return ""
 
         # Normal prose line — pass through

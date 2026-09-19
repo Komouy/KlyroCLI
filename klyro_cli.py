@@ -65,8 +65,14 @@ from theme import (
     RESET, BOLD,
     FROST_CYAN, FROST_ICE, FROST_MINT, FROST_INDIGO,
     FROST_CORAL, FROST_AMBER, FROST_WHITE, FROST_DARK, FROST_GRAY,
-    get_git_branch, gradient_text,
+    get_git_branch, gradient_text, clip_line,
 )
+import shutil
+
+
+def _clip(s: str) -> str:
+    """Keep single-line UI elements to one physical row (no wrap-overlap)."""
+    return clip_line(s, shutil.get_terminal_size(fallback=(80, 24)).columns - 1)
 
 
 def render_route_badge(ai_assistant) -> str:
@@ -176,7 +182,7 @@ def main():
     while True:
         try:
             top_bar = render_top_bar(folder_aktif, ai_assistant)
-            print(f"\n{top_bar}")
+            print(f"\n{_clip(top_bar)}")
 
             if _use_prompt_session:
                 try:
@@ -315,7 +321,7 @@ def main():
                         if not first_chunk_received:
                             spinner.stop()
                             if not consensus_active:
-                                sys.stdout.write(render_route_badge(ai_assistant))
+                                sys.stdout.write(_clip(render_route_badge(ai_assistant)))
                                 sys.stdout.flush()
                             first_chunk_received = True
 

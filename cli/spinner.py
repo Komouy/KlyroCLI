@@ -19,7 +19,7 @@ from theme import (
     FROST_CYAN, FROST_AQUA, FROST_ICE, FROST_MINT, FROST_INDIGO,
     FROST_WHITE, FROST_GRAY, FROST_DARK, FROST_GHOST, FROST_AMBER,
     BG_SURFACE, keycap,
-    gradient_text, shimmer_gradient, get_git_branch,
+    gradient_text, shimmer_gradient, clip_line, get_git_branch,
 )
 
 try:
@@ -305,10 +305,10 @@ def print_banner(folder_path, ai_assistant):
     lines.append(BOT)
     struct.add(len(lines) - 1)
 
-    # Draw the card
+    # Draw the card (clipped so no row can wrap and desync the sweep)
     print()
     for ln in lines:
-        print(ln)
+        print(clip_line(ln, term_width - 1))
     print()  # breathing room — cursor rests one line below the card
 
     # ── Aurora sweep: ice-light glides along the frost frame only ──
@@ -319,7 +319,7 @@ def print_banner(folder_path, ai_assistant):
         for i, ln in enumerate(lines):
             if i in struct:
                 ln = shimmer_gradient(ln, (71, 85, 105), (129, 140, 248), center=center)
-            sys.stdout.write(ln + "\n")
+            sys.stdout.write(clip_line(ln, term_width - 1) + "\n")
         sys.stdout.flush()
         time.sleep(0.05)
 
@@ -377,29 +377,29 @@ def play_startup_animation(folder_path, ai_assistant):
     # Step 1: Runtime
     spinner_glyphs = ["⠋", "⠙", "⠹", "⠸"]
     for g in spinner_glyphs:
-        sys.stdout.write(f"\r  {FROST_CYAN}{g}{RESET} {FROST_GRAY}Initializing Nordic runtime environment...{RESET}\033[K")
+        sys.stdout.write(clip_line(f"\r  {FROST_CYAN}{g}{RESET} {FROST_GRAY}Initializing Nordic runtime environment...{RESET}\033[K", term_width - 1))
         sys.stdout.flush()
         time.sleep(0.02)
-    sys.stdout.write(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Nordic runtime active{RESET}\033[K\n")
+    sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Nordic runtime active{RESET}\033[K\n", term_width - 1))
 
     # Step 2: Indexing
     for g in spinner_glyphs:
-        sys.stdout.write(f"\r  {FROST_AQUA}{g}{RESET} {FROST_GRAY}Indexing workspace files & project context...{RESET}\033[K")
+        sys.stdout.write(clip_line(f"\r  {FROST_AQUA}{g}{RESET} {FROST_GRAY}Indexing workspace files & project context...{RESET}\033[K", term_width - 1))
         sys.stdout.flush()
         time.sleep(0.02)
-    sys.stdout.write(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Indexed {BOLD}{len(files)}{RESET} {FROST_GRAY}files in workspace{RESET}\033[K\n")
+    sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Indexed {BOLD}{len(files)}{RESET} {FROST_GRAY}files in workspace{RESET}\033[K\n", term_width - 1))
 
     # Step 3: AI Provider Link
     provider_name = ai_assistant.provider.upper()
     model_name = ai_assistant.current_model or (MODEL_KECIL if ai_assistant.provider == "gemini" else GROQ_MODEL_CEPAT)
     has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
     for g in spinner_glyphs:
-        sys.stdout.write(f"\r  {FROST_INDIGO}{g}{RESET} {FROST_GRAY}Checking AI neural engine ({provider_name})...{RESET}\033[K")
+        sys.stdout.write(clip_line(f"\r  {FROST_INDIGO}{g}{RESET} {FROST_GRAY}Checking AI neural engine ({provider_name})...{RESET}\033[K", term_width - 1))
         sys.stdout.flush()
         time.sleep(0.02)
     if has_key:
-        sys.stdout.write(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Neural engine ready:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_DARK}({model_name}){RESET}\033[K\n")
+        sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Neural engine ready:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_DARK}({model_name}){RESET}\033[K\n", term_width - 1))
     else:
-        sys.stdout.write(f"\r  {FROST_AMBER}○{RESET} {FROST_GRAY}Neural engine:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_AMBER}(Key belum diset — ketik /provider){RESET}\033[K\n")
+        sys.stdout.write(clip_line(f"\r  {FROST_AMBER}○{RESET} {FROST_GRAY}Neural engine:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_AMBER}(Key belum diset — ketik /provider){RESET}\033[K\n", term_width - 1))
 
     print_banner(folder_path, ai_assistant)

@@ -16,7 +16,7 @@ from theme import (
     FROST_CYAN, FROST_ICE, FROST_MINT,
     FROST_WHITE, FROST_GRAY, FROST_DARK, FROST_GHOST,
     BG_CYAN_TINT,
-    keycap, shimmer_gradient,
+    keycap, shimmer_gradient, clip_line, display_width,
 )
 
 # ── Motion tuning ────────────────────────────────────────────
@@ -57,34 +57,42 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
             center=center, highlight_rgb=_TITLE_GLOW,
         )
 
-    def write_title_bar(center=None):
-        """Emit just the top border + (optionally shimmering) title line."""
+    def write_title_bar(center=None, newline=True):
+        """Emit the top border + (optionally shimmering) title line.
+        With newline=False the cursor stays on this line — used by the idle
+        shimmer tick so its line-count arithmetic stays anchored."""
         pad = card_width - len(title) - 5
-        sys.stdout.write(
+        line = (
             f"  {FROST_DARK}╭─ {title_fragment(center)}"
-            f" {FROST_DARK}{'─' * max(0, pad)}╮{RESET}\033[K\n"
+            f" {FROST_DARK}{'─' * max(0, pad)}╮{RESET}\033[K"
         )
+        sys.stdout.write(clip_line(line, card_width + 4) + ("\n" if newline else ""))
 
     def render_row(idx: int, selected: bool, ghost: bool = False) -> str:
         opt = options[idx]
         label = opt["label"][:24].ljust(24)
+        # Keep every row inside the card so it can never wrap — a wrapped row
+        # would desync clear_menu()'s cursor arithmetic and overwrite other UI.
+        desc_budget = max(0, card_width - 34)
         desc = opt.get("description", "")
+        if len(desc) > desc_budget:
+            desc = desc[:max(0, desc_budget - 1)] + "…"
         if selected:
             arrow = f"{FROST_CYAN}{BOLD}❯{RESET}"
             body = (
                 f"{BG_CYAN_TINT} {BOLD}{FROST_WHITE}{label} {RESET}"
                 f"  {FROST_ICE}{desc}{RESET}"
             )
-            return f"  {FROST_DARK}│{RESET} {arrow} {body}\n"
+            return f"  {FROST_DARK}│{RESET} {arrow} {body}"
         if ghost:
             # glide trail: the row the selection just left
             return (
                 f"  {FROST_DARK}│{RESET}  {FROST_DARK}·{RESET} "
-                f"{FROST_GRAY}{label}{RESET} {FROST_DARK}{desc}{RESET}\n"
+                f"{FROST_GRAY}{label}{RESET} {FROST_DARK}{desc}{RESET}"
             )
         return (
             f"  {FROST_DARK}│{RESET}   "
-            f"{FROST_GHOST}{label}{RESET} {FROST_DARK}{desc}{RESET}\n"
+            f"{FROST_GHOST}{label}{RESET} {FROST_DARK}{desc}{RESET}"
         )
 
     def render(shimmer_center=None, ghost_idx=None, first=False):
@@ -95,16 +103,17 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
         for idx in range(num_options):
             is_selected = idx == current_idx
             is_ghost = ghost_idx is not None and idx == ghost_idx and not is_selected
-            sys.stdout.write(render_row(idx, is_selected, is_ghost))
+            sys.stdout.write(clip_line(render_row(idx, is_selected, is_ghost), card_width + 4) + "\n")
             if first:
                 sys.stdout.flush()
                 time.sleep(_ENTRANCE_DELAY)
-        sys.stdout.write(f"  {FROST_DARK}╰{'─' * card_width}╯{RESET}\n")
-        sys.stdout.write(
+        sys.stdout.write(clip_line(f"  {FROST_DARK}╰{'─' * card_width}╯{RESET}", card_width + 4) + "\n")
+        sys.stdout.write(clip_line(
             f"  {keycap('↑/↓')} {FROST_DARK}Navigate{RESET}  "
             f"{keycap('Enter')} {FROST_DARK}Select{RESET}  "
-            f"{keycap('Esc')} {FROST_DARK}Cancel{RESET}\n"
-        )
+            f"{keycap('Esc')} {FROST_DARK}Cancel{RESET}",
+            card_width + 4,
+        ) + "\n")
         sys.stdout.flush()
 
     def tick_shimmer():
@@ -114,7 +123,7 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
             shimmer["center"] = -0.35
         # Jump to the title line (blank + title + N options + border below it)
         sys.stdout.write(f"\033[{num_options + 2}F\r")
-        write_title_bar(shimmer["center"])
+        write_title_bar(shimmer["center"], newline=False)
         # Return to the hint line so navigation redraws stay anchored
         sys.stdout.write(f"\033[{num_options + 2}B")
         sys.stdout.flush()
