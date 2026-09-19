@@ -414,6 +414,14 @@ def test_cancellation_monitor():
 # 11. UX API KEY VALIDATION & LIVE HANDSHAKE
 # ─────────────────────────────────────────────────────────────────
 def test_validate_api_key_format_valid():
+    # Modern Gemini key starting with AQ or AQ.
+    ok, _ = provider_manager.validate_api_key_format("gemini", "AQ." + "A" * 33)
+    assert ok is True
+
+    ok, _ = provider_manager.validate_api_key_format("gemini", "AQ" + "A" * 33)
+    assert ok is True
+
+    # Legacy Gemini key starting with AIzaSy
     ok, _ = provider_manager.validate_api_key_format("gemini", "AIzaSy" + "A" * 33)
     assert ok is True
 
@@ -443,7 +451,7 @@ def test_validate_api_key_format_rejects_dummies_and_mismatches():
     # Rejects prefix mismatch
     ok, msg = provider_manager.validate_api_key_format("gemini", "gsk_12345678901234567890123456789012345")
     assert ok is False
-    assert "AIzaSy" in msg
+    assert "AQ" in msg or "AIza" in msg
 
     # Rejects empty or whitespace
     ok, msg = provider_manager.validate_api_key_format("gemini", "   ")
@@ -809,3 +817,292 @@ def test_router_command_simulation(capsys):
     captured = capsys.readouterr()
     assert "Simulated Route Decision" in captured.out
     assert "Target Engine" in captured.out
+
+
+def test_dirty_git_files_parsing(monkeypatch):
+    import subprocess
+    import validations
+
+    fake_output = (
+        " M validations.py\n"
+        "M  staged_file.py\n"
+        "?? untracked.txt\n"
+        " D deleted.py\n"
+        "R  old.py -> new.py\n"
+        ' M "quoted path.py"\n'
+    )
+    class FakeResult:
+        returncode = 0
+        stdout = fake_output
+
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: FakeResult())
+    dirty = validations.get_dirty_git_files(".")
+    assert "validations.py" in dirty
+    assert "staged_file.py" in dirty
+    assert "deleted.py" in dirty
+    assert "old.py -> new.py" in dirty
+    assert "quoted path.py" in dirty
+    assert "untracked.txt" not in dirty
+    # Verify no truncated first-character filenames
+    assert "alidations.py" not in dirty
+    assert "eleted.py" not in dirty
+
+
+def test_check_dirty_git_guard(monkeypatch):
+    import validations
+
+    # Safe prompt (read-only) -> never warns
+    assert validations.check_dirty_git_guard(".", "jelaskan kode ini") is True
+
+    # Write prompt with dirty files: user chooses abort (n)
+    monkeypatch.setattr(validations, "get_dirty_git_files", lambda folder: ["main.py"])
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+    assert validations.check_dirty_git_guard(".", "refactor seluruh main.py") is False
+
+    # User chooses proceed anyway (y)
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+    assert validations.check_dirty_git_guard(".", "refactor seluruh main.py") is True
+
+    # User chooses auto-stash (s) - success
+    monkeypatch.setattr("builtins.input", lambda prompt: "s")
+    monkeypatch.setattr(validations, "run_auto_stash", lambda folder: (True, "Saved working directory"))
+    assert validations.check_dirty_git_guard(".", "refactor seluruh main.py") is True
+
+    # User chooses auto-stash (s) - failure
+    monkeypatch.setattr(validations, "run_auto_stash", lambda folder: (False, "git lock error"))
+    assert validations.check_dirty_git_guard(".", "refactor seluruh main.py") is False
+
+
+def test_check_empty_input(capsys):
+    import validations
+    validations._consecutive_empty = 0
+
+    # Non-empty real input
+    assert validations.check_empty_input("hello world") is False
+    assert validations._consecutive_empty == 0
+
+    # Blank / noise inputs
+    assert validations.check_empty_input("") is True
+    assert validations.check_empty_input("   ") is True
+    assert validations.check_empty_input("...") is True
+    captured = capsys.readouterr()
+    assert "Tip:" in captured.out and "/help" in captured.out
+    assert validations._consecutive_empty == 0  # reset after threshold
+
+
+def test_ping_ollama_and_cache(monkeypatch):
+    import validations
+    import urllib.request
+    validations.reset_ollama_cache()
+
+    class MockResp:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+
+    requested_urls = []
+    def mock_urlopen(req, timeout=1.5):
+        requested_urls.append(req.full_url)
+        return MockResp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    # URL without scheme should be prefixed with http://
+    ok, msg = validations.ping_ollama("localhost:11434/v1")
+    assert ok is True
+    assert "Endpoint active" in msg
+    assert requested_urls[-1] == "http://localhost:11434/v1/models"
+
+    # Cached hit
+    ok2, _ = validations.ping_ollama("localhost:11434/v1")
+    assert ok2 is True
+    assert len(requested_urls) == 1  # no extra network request
+
+    validations.reset_ollama_cache()
+
+
+def test_run_auto_stash_unit(monkeypatch):
+    import subprocess
+    import validations
+
+    # Test success
+    class FakeSuccess:
+        returncode = 0
+        stdout = "Saved working directory and index state WIP on main"
+        stderr = ""
+
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: FakeSuccess())
+    ok, msg = validations.run_auto_stash(".")
+    assert ok is True
+    assert "Saved working directory" in msg
+
+    # Test failure
+    class FakeFail:
+        returncode = 1
+        stdout = ""
+        stderr = "fatal: not a git repository"
+
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: FakeFail())
+    ok, msg = validations.run_auto_stash(".")
+    assert ok is False
+    assert "fatal" in msg
+
+
+def test_check_git_conflict_markers():
+    import validations
+
+    # 1. Clean code
+    clean_code = "def hello():\n    return 'clean'\n"
+    has_c, line_no, marker = validations.check_git_conflict_markers(clean_code)
+    assert has_c is False
+    assert line_no == 0
+
+    # 2. Code with conflict markers
+    conflict_code = (
+        "def compute():\n"
+        "<<<<<<< HEAD\n"
+        "    return 1\n"
+        "=======\n"
+        "    return 2\n"
+        ">>>>>>> feature-branch\n"
+    )
+    has_c, line_no, marker = validations.check_git_conflict_markers(conflict_code)
+    assert has_c is True
+    assert line_no == 2
+    assert marker == "<<<<<<< HEAD"
+
+    # 3. Code with middle separator or base marker
+    has_c, line_no, marker = validations.check_git_conflict_markers("line 1\n||||||| merged common ancestors\nline 3")
+    assert has_c is True
+    assert line_no == 2
+    assert "|||||||" in marker
+
+
+def test_post_edit_diagnostics_blocks_git_conflict_markers():
+    import validations
+
+    bad_py = "x = 1\n<<<<<<< HEAD\ny = 2\n=======\ny = 3\n>>>>>>> feat\n"
+    ok, msg, diag = validations.run_post_edit_diagnostics("service.py", bad_py)
+    assert ok is False
+    assert "conflict marker" in msg.lower()
+    assert diag["errors"][0]["type"] == "GitConflictMarker"
+    assert diag["errors"][0]["line"] == 2
+
+    # JS file with conflict
+    bad_js = "function test() {\n<<<<<<< HEAD\n  return 1;\n=======\n  return 2;\n>>>>>>> main\n}"
+    ok, msg, diag = validations.run_post_edit_diagnostics("index.js", bad_js)
+    assert ok is False
+    assert "conflict marker" in msg.lower()
+
+    # Markdown doc file with tutorial conflict markers is not blocked
+    tutorial_md = "# How to resolve merge conflicts\nExample:\n```\n<<<<<<< HEAD\nfoo\n=======\nbar\n>>>>>>> main\n```\n"
+    ok, msg, _ = validations.run_post_edit_diagnostics("README.md", tutorial_md)
+    assert ok is True
+
+
+def test_file_manager_validasi_sintaks_blocks_conflict_markers():
+    import file_manager
+
+    code = "let a = 10;\n<<<<<<< HEAD\nlet b = 20;\n=======\nlet b = 30;\n>>>>>>> main"
+    ok, msg = file_manager.validasi_sintaks("app.ts", code)
+    assert ok is False
+    assert "conflict marker" in msg.lower()
+
+
+# ─────────────────────────────────────────────────────────────
+# FEATURE 8: SECRET LEAK GUARD — AI FILE WRITE CHECK
+# ─────────────────────────────────────────────────────────────
+
+def test_security_check_secret_leak_detects_keys():
+    """security.check_secret_leak should detect known hardcoded secret patterns."""
+    import security
+
+    # OpenAI key
+    openai_code = 'api_key = "sk-proj-abcdefghijklmnopqrstuvwx12345678901234567890"'
+    findings = security.check_secret_leak(openai_code)
+    assert len(findings) > 0
+    assert any(f["label"] in ("OpenAI / Provider API Key", "Generic sk- API Key") for f in findings)
+    assert all("line" in f and "match" in f for f in findings)
+
+    # GitHub token
+    github_code = 'token = "ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456789012"'
+    findings = security.check_secret_leak(github_code)
+    assert any(f["label"] == "GitHub Token" for f in findings)
+
+    # Google AI / Gemini key (AQ prefix)
+    gemini_code = 'GEMINI_KEY = "AQabcdefghijklmnopqrstuvwxyz1234"'
+    findings = security.check_secret_leak(gemini_code)
+    assert any(f["label"] == "Google AI Key" for f in findings)
+
+    # AWS access key
+    aws_code = 'AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"'
+    findings = security.check_secret_leak(aws_code)
+    assert any(f["label"] == "AWS Access Key ID" for f in findings)
+
+
+def test_security_check_secret_leak_clean_code():
+    """No findings on innocent code that has no hardcoded secrets."""
+    import security
+
+    clean = (
+        "import os\n"
+        "GEMINI_KEY = os.environ['GEMINI_KEY']\n"
+        "OPENAI_KEY = os.getenv('OPENAI_KEY')\n"
+        "# TODO: add API key here\n"
+    )
+    findings = security.check_secret_leak(clean)
+    assert findings == []
+
+
+def test_check_secret_in_file_write_skips_docs():
+    """check_secret_in_file_write should skip .md / .txt files."""
+    import validations
+
+    # A markdown tutorial that mentions a fake secret pattern should not trigger
+    md_content = (
+        "# Setup Guide\n"
+        "Set your key: `sk-proj-abcdefghijklmnopqrstuvwx12345678901234567890`\n"
+    )
+    findings = validations.check_secret_in_file_write("SETUP.md", md_content)
+    assert findings == []  # .md is in SKIP_EXTENSIONS
+
+    # Same content in a .py file SHOULD trigger
+    findings_py = validations.check_secret_in_file_write("config.py", md_content)
+    assert len(findings_py) > 0
+
+
+def test_post_edit_diagnostics_surfaces_secret_warnings():
+    """run_post_edit_diagnostics returns secret_warnings in details for clean Python."""
+    import validations
+
+    # Syntactically valid Python but hardcodes a GitHub token
+    code = (
+        "import requests\n"
+        'GITHUB_TOKEN = "ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456789012"\n'
+        "headers = {'Authorization': f'token {GITHUB_TOKEN}'}\n"
+    )
+    is_clean, msg, details = validations.run_post_edit_diagnostics("github_client.py", code)
+
+    # Syntax is clean
+    assert is_clean is True
+    assert "python syntax" in msg.lower()
+
+    # But secret_warnings should be populated
+    secret_warnings = details.get("secret_warnings", [])
+    assert len(secret_warnings) > 0
+    assert any("GitHub Token" in w or "ghp_" in w.lower() or "line 2" in w for w in secret_warnings)
+    assert any(".env" in w or "os.environ" in w for w in secret_warnings)
+
+
+def test_post_edit_diagnostics_no_false_positives():
+    """run_post_edit_diagnostics has no secret warnings on clean environment-loaded code."""
+    import validations
+
+    code = (
+        "import os\n"
+        "GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')\n"
+        "OPENAI_KEY = os.getenv('OPENAI_API_KEY')\n"
+    )
+    is_clean, msg, details = validations.run_post_edit_diagnostics("client.py", code)
+    assert is_clean is True
+    assert details.get("secret_warnings", []) == []

@@ -23,7 +23,7 @@ PROVIDER_CATALOG = {
             {"id": "gemini-3.1-pro-preview",   "desc": "🧠 Complex Reasoning • Large Architectures"},
         ],
         "key_env": "GEMINI_API_KEY",
-        "key_placeholder": "AIzaSy..."
+        "key_placeholder": "AQ... (atau AIzaSy...)"
     },
     "groq": {
         "name": "Groq LPU",
@@ -363,10 +363,10 @@ def validate_api_key_format(provider: str, key: str) -> tuple[bool, str]:
         return False, "Key terdeteksi sebagai placeholder atau dummy test value."
 
     if provider == "gemini":
-        if not (clean_key.startswith("AIzaSy") or clean_key.startswith("AQ.")):
-            return False, "Gemini API key harus diawali dengan 'AIzaSy' atau 'AQ.'."
-        if len(clean_key) < 35:
-            return False, f"Gemini API key terlalu pendek ({len(clean_key)} karakter, format standar ~39)."
+        if not (clean_key.startswith("AQ") or clean_key.startswith("AIza")):
+            return False, "Gemini API key harus diawali dengan 'AQ' atau 'AIza'."
+        if len(clean_key) < 25:
+            return False, f"Gemini API key terlalu pendek ({len(clean_key)} karakter)."
     elif provider == "groq":
         if not clean_key.startswith("gsk_"):
             return False, "Groq API key harus diawali dengan 'gsk_'."

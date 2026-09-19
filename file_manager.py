@@ -421,6 +421,17 @@ def validasi_sintaks(file_path, konten, old_content=None):
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
 
+    # 2. Git merge conflict markers check
+    DOC_EXTENSIONS = {".md", ".markdown", ".rst", ".txt"}
+    if ext not in DOC_EXTENSIONS:
+        try:
+            import validations
+            has_conflict, c_line, c_marker = validations.check_git_conflict_markers(konten)
+            if has_conflict:
+                return False, f"Git conflict marker on line {c_line}: `{c_marker}` — unresolved conflict detected"
+        except Exception:
+            pass
+
     if ext == ".py":
         import ast
         try:
@@ -439,9 +450,14 @@ def validasi_sintaks(file_path, konten, old_content=None):
             return False, f"JSON Error: {e}"
     elif ext == ".toml":
         try:
-            import tomllib
+            try:
+                import tomllib
+            except ModuleNotFoundError:
+                import tomli as tomllib
             tomllib.loads(konten)
             return True, "Valid TOML format."
+        except ModuleNotFoundError:
+            return True, "Valid TOML format (tomllib not available on Python <3.11)."
         except Exception as e:
             return False, f"TOML Syntax Error: {e}"
     elif ext in [".js", ".jsx", ".ts", ".tsx", ".c", ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".cs", ".php"]:

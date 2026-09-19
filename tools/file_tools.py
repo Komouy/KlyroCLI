@@ -206,6 +206,13 @@ class FileWriteTool(Tool):
             if not diag_clean:
                 output_msg += f"\nWARNING [SYNTAX_ERROR]: {diag_msg}\nPlease review and correct the syntax error."
 
+            # Surface secret leak warnings (non-blocking)
+            secret_warnings = diag_details.get("secret_warnings", []) if isinstance(diag_details, dict) else []
+            if secret_warnings:
+                for sw in secret_warnings:
+                    output_msg += f"\n{sw}"
+                output_msg += "\nConsider moving secrets to a .env file and loading via os.environ."
+
             return ToolResult(
                 success=True,
                 output=output_msg,
@@ -216,6 +223,7 @@ class FileWriteTool(Tool):
                     "append": append,
                     "syntax_clean": diag_clean,
                     "syntax_diagnostics": diag_details,
+                    "secret_warnings": secret_warnings,
                 }
             )
         

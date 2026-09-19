@@ -32,7 +32,8 @@ HEAVY_KEYWORDS = [
     "seluruh", "semua file", "keseluruhan", "audit", "arsitektur proyek",
     "full codebase", "migrate", "migrasi", "project wide", "refaktor seluruh",
     "dokumentasi lengkap", "analisis struktur", "analisis proyek", "codebase overview",
-    "entire project", "all files", "across the project"
+    "entire project", "all files", "across the project", "fullstack", "full-stack",
+    "dari nol", "from scratch"
 ]
 
 REASONING_KEYWORDS = [

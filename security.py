@@ -155,7 +155,7 @@ SECRET_PATTERNS = [
     ),
     (
         "Google AI Key",
-        re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+        re.compile(r"\b(?:AIza[0-9A-Za-z_-]{35}|AQ[0-9A-Za-z_.-]{25,})\b"),
         "[REDACTED_GOOGLE_KEY]"
     ),
     (
@@ -189,6 +189,59 @@ SECRET_PATTERNS = [
         r"\g<1>[REDACTED_SECRET]\g<3>"
     ),
 ]
+
+
+def check_secret_leak(content: str) -> list[dict]:
+    """
+    Scan file content that is about to be written to disk for hardcoded
+    secrets/API keys embedded by the AI in the source code.
+
+    Unlike sanitize_outgoing_context (which redacts before sending to LLM),
+    this function is the *outbound write guard*: it detects and reports
+    findings so callers can warn the user, without blocking the write.
+
+    Returns:
+        List of dicts, each with keys:
+          - "label"  (str): Human-readable credential type name.
+          - "line"   (int): 1-indexed line number where the match was found.
+          - "match"  (str): The matched secret token, partially redacted for display.
+    """
+    if not content:
+        return []
+
+    findings: list[dict] = []
+    lines = content.splitlines()
+
+    # Only scan the patterns that indicate a hardcoded literal credential.
+    # We skip "Generic Assigned Secret" for now because it generates too many
+    # false positives on placeholder strings like `api_key = "your-key-here"`.
+    SCAN_LABELS = {
+        "Private Key",
+        "OpenAI / Provider API Key",
+        "Generic sk- API Key",
+        "Google AI Key",
+        "GitHub Token",
+        "Hugging Face Token",
+        "AWS Access Key ID",
+        "AWS Secret Access Key",
+        "Database Password",
+    }
+
+    for label, pattern, _ in SECRET_PATTERNS:
+        if label not in SCAN_LABELS:
+            continue
+        for lineno, line in enumerate(lines, start=1):
+            m = pattern.search(line)
+            if m:
+                raw = m.group(0)
+                # Partially redact for safe display: show first 6 and last 4 chars
+                if len(raw) > 12:
+                    display = raw[:6] + "..." + raw[-4:]
+                else:
+                    display = raw[:4] + "..."
+                findings.append({"label": label, "line": lineno, "match": display})
+
+    return findings
 
 
 def sanitize_outgoing_context(text: str) -> tuple[str, list[str]]:

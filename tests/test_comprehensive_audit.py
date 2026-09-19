@@ -204,6 +204,8 @@ try:
     assert assistant.current_model == "openrouter/free"
 
     # Test auto-route decision
+    assistant.auto_route = True
+    assistant._user_locked_provider = False
     p, m, reason = assistant._route_for_task("buat aplikasi fullstack dari nol")
     assert p == "gemini", f"Heavy task routing issue: got {p}"
     

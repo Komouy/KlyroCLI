@@ -243,6 +243,18 @@ def parse_and_apply_actions(response_text, folder_aktif, ai_assistant):
                 UI.file_updated(filename)
                 if not ok_syntax:
                     UI.syntax_warning(filename, f"Applied with syntax warning: {syntax_msg}")
+                # Secret leak guard: warn if AI hardcoded credentials in written file
+                try:
+                    import validations as _v
+                    secret_findings = _v.check_secret_in_file_write(filename, body)
+                    for sf in secret_findings:
+                        UI.warning(
+                            f"Hardcoded {sf['label']} detected on line {sf['line']} "
+                            f"({sf['match']}) in {BOLD}{filename}{RESET}. "
+                            f"Disarankan simpan di .env dan load via os.environ."
+                        )
+                except Exception:
+                    pass
                 if file_existed:
                     applied_ops.append({"type": "modify", "path": target_path, "old_content": old_code or ""})
                 else:

@@ -32,8 +32,11 @@ def get_dirty_git_files(folder: str) -> list[str]:
         )
         if result.returncode != 0:
             return []
-        lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
-        dirty = [l[3:].strip() for l in lines if l[:2].strip() and l[:2] != "??"]
+        lines = result.stdout.splitlines()
+        dirty = []
+        for l in lines:
+            if len(l) >= 4 and l[:2].strip() and not l.startswith("??"):
+                dirty.append(l[3:].strip().strip('"'))
         return dirty
     except Exception:
         return []
@@ -47,8 +50,33 @@ WRITE_KEYWORDS = [
 ]
 
 
+def run_auto_stash(folder: str) -> tuple[bool, str]:
+    """Execute git stash to protect uncommitted changes before AI write operations.
+    Returns: (success: bool, message: str)
+    """
+    import time
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    msg = f"klyro-auto-stash-{ts}"
+    try:
+        res = subprocess.run(
+            ["git", "stash", "push", "-m", msg],
+            cwd=folder,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if res.returncode == 0:
+            out = res.stdout.strip() or msg
+            return True, out
+        err = res.stderr.strip() or f"git exit code {res.returncode}"
+        return False, err
+    except Exception as e:
+        return False, str(e)
+
+
 def check_dirty_git_guard(folder: str, prompt: str) -> bool:
     """Warn if workspace has uncommitted changes and prompt looks write-heavy.
+    Offers [y]es to proceed, [s]tash to auto-stash first, or [n]o to abort.
 
     Returns True  → safe to proceed.
     Returns False → user chose to abort.
@@ -61,20 +89,35 @@ def check_dirty_git_guard(folder: str, prompt: str) -> bool:
     if not dirty_files:
         return True
 
-    from theme import RESET, BOLD, FROST_AMBER, FROST_CORAL, FROST_DARK, FROST_CYAN, FROST_WHITE
+    from theme import RESET, BOLD, FROST_AMBER, FROST_CORAL, FROST_DARK, FROST_CYAN, FROST_WHITE, FROST_MINT
     print(f"\n  {FROST_AMBER}{BOLD}⚠️  Dirty Git Working Tree Detected{RESET}")
     print(f"  {FROST_DARK}The following files have uncommitted changes:{RESET}")
     for f in dirty_files[:10]:
         print(f"  {FROST_WHITE}  • {f}{RESET}")
     if len(dirty_files) > 10:
         print(f"  {FROST_DARK}  … and {len(dirty_files) - 10} more{RESET}")
-    print(f"  {FROST_DARK}Tip: run {FROST_CYAN}/commit{FROST_DARK} or {FROST_CYAN}!git stash{FROST_DARK} first to protect your work.{RESET}")
+    print(f"  {FROST_DARK}Tip: run {FROST_CYAN}/commit{FROST_DARK} or stash changes first to protect your work.{RESET}")
 
     try:
-        ans = input(f"  {FROST_CORAL}Proceed anyway? (y/N):{RESET} ").strip().lower()
+        ans = input(
+            f"  {FROST_CORAL}Options:{RESET} "
+            f"{FROST_WHITE}[y]{RESET} Proceed  "
+            f"{FROST_WHITE}[s]{RESET} Auto-stash changes  "
+            f"{FROST_WHITE}[N]{RESET} Abort: "
+        ).strip().lower()
     except (KeyboardInterrupt, EOFError):
         ans = "n"
         print()
+
+    if ans in ("s", "stash"):
+        ok, msg = run_auto_stash(folder)
+        if ok:
+            print(f"  {FROST_MINT}✔ Uncommitted changes stashed:{RESET} {FROST_DARK}{msg}{RESET}")
+            print(f"  {FROST_DARK}(Restore anytime using {FROST_CYAN}!git stash pop{FROST_DARK}){RESET}\n")
+            return True
+        else:
+            print(f"  {FROST_CORAL}✘ Failed to auto-stash:{RESET} {msg}\n")
+            return False
 
     return ans in ("y", "yes")
 
@@ -117,7 +160,10 @@ def ping_ollama(base_url: str = "http://localhost:11434/v1", timeout: float = 1.
     if base_url in _ollama_probe_cache:
         return _ollama_probe_cache[base_url]
 
-    url = base_url.strip().rstrip("/") + "/models"
+    cleaned_url = (base_url or "http://localhost:11434/v1").strip().rstrip("/")
+    if not cleaned_url.startswith("http://") and not cleaned_url.startswith("https://"):
+        cleaned_url = "http://" + cleaned_url
+    url = cleaned_url + "/models"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "KlyroCLI/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -234,13 +280,60 @@ def validate_file_mention_candidate(file_rel: str, abs_path: str = None) -> tupl
 
 
 # ─────────────────────────────────────────────────────────────
-# V7: POST-EDIT SYNTAX / LINTER VALIDATION
+# V7: POST-EDIT SYNTAX / LINTER VALIDATION & GIT CONFLICT GUARD
 # ─────────────────────────────────────────────────────────────
+
+_GIT_CONFLICT_PATTERN = re.compile(r"^(<{7}|={7}|>{7}|\|{7})(?:\s.*)?$")
+
+
+# ─────────────────────────────────────────────────────────────
+# V8: SECRET LEAK GUARD — AI FILE WRITE CHECK
+# ─────────────────────────────────────────────────────────────
+
+def check_secret_in_file_write(filename: str, content: str) -> list[dict]:
+    """
+    Wrapper for security.check_secret_leak that is called right before/after
+    an AI-generated file is written to disk.
+
+    Scans the content for hardcoded API keys / credentials and returns a list
+    of findings (non-blocking: callers should WARN the user but still allow
+    the write unless they choose to abort).
+
+    Returns:
+        List of dicts with keys: label, line, match
+        Empty list means no secrets found.
+    """
+    # Skip pure documentation/config files where "secrets" are likely examples
+    SKIP_EXTENSIONS = {".md", ".markdown", ".rst", ".txt", ".lock", ".sum"}
+    _, ext = os.path.splitext(filename)
+    if ext.lower() in SKIP_EXTENSIONS:
+        return []
+
+    try:
+        import security
+        return security.check_secret_leak(content)
+    except Exception:
+        return []
+
+
+def check_git_conflict_markers(content: str) -> tuple[bool, int, str]:
+    """Scan content for unresolved git merge conflict markers (<<<<<<<, =======, >>>>>>>, |||||||).
+    Returns:
+        (has_conflict: bool, line_no: int, marker_line: str)
+    """
+    if not content:
+        return False, 0, ""
+    for idx, line in enumerate(content.splitlines(), 1):
+        stripped = line.strip()
+        if _GIT_CONFLICT_PATTERN.match(stripped):
+            return True, idx, stripped
+    return False, 0, ""
+
 
 def run_post_edit_diagnostics(file_path: str, content: str = None) -> tuple[bool, str, dict]:
     """
     Validates syntax and linter status of a newly edited/written file.
-    Runs fast AST checks, compile tests, format parses (JSON/TOML), and balanced delimiter checks.
+    Runs conflict marker checks, fast AST checks, compile tests, format parses (JSON/TOML), and balanced delimiter checks.
     Returns:
         is_clean (bool): True if no errors detected.
         summary_msg (str): Short summary for human/agent consumption.
@@ -256,9 +349,24 @@ def run_post_edit_diagnostics(file_path: str, content: str = None) -> tuple[bool
     if content is None:
         return True, "No content to validate", {}
 
-    details = {"file": file_path, "errors": []}
+    details = {"file": file_path, "errors": [], "secret_warnings": []}
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
+
+    # Pre-check: Unresolved Git Conflict Markers (exclude pure documentation files)
+    DOC_EXTENSIONS = {".md", ".markdown", ".rst", ".txt"}
+    if ext not in DOC_EXTENSIONS:
+        has_conflict, c_line, c_marker = check_git_conflict_markers(content)
+        if has_conflict:
+            err_dict = {
+                "type": "GitConflictMarker",
+                "line": c_line,
+                "marker": c_marker,
+                "message": f"Unresolved git conflict marker found on line {c_line}: {c_marker}"
+            }
+            details["errors"].append(err_dict)
+            summary = f"Git conflict marker on line {c_line} (`{c_marker}`) — unresolved merge conflict detected"
+            return False, summary, details
 
     if ext == ".py":
         import ast
@@ -296,12 +404,14 @@ def run_post_edit_diagnostics(file_path: str, content: str = None) -> tuple[bool
         except Exception:
             pass
 
+        _inject_secret_warnings(file_path, content, details)
         return True, "Python syntax clean", details
 
     elif ext == ".json":
         import json
         try:
             json.loads(content)
+            _inject_secret_warnings(file_path, content, details)
             return True, "JSON format valid", details
         except json.JSONDecodeError as e:
             err_dict = {
@@ -315,9 +425,15 @@ def run_post_edit_diagnostics(file_path: str, content: str = None) -> tuple[bool
 
     elif ext == ".toml":
         try:
-            import tomllib
+            try:
+                import tomllib
+            except ModuleNotFoundError:
+                import tomli as tomllib
             tomllib.loads(content)
+            _inject_secret_warnings(file_path, content, details)
             return True, "TOML format valid", details
+        except ModuleNotFoundError:
+            return True, "TOML format valid (tomllib not installed on Python <3.11)", details
         except Exception as e:
             err_dict = {"type": "TOMLDecodeError", "message": str(e)}
             details["errors"].append(err_dict)
@@ -333,8 +449,32 @@ def run_post_edit_diagnostics(file_path: str, content: str = None) -> tuple[bool
                 return False, msg, details
         except Exception:
             pass
+        _inject_secret_warnings(file_path, content, details)
         return True, "Delimiter balance valid", details
 
+    _inject_secret_warnings(file_path, content, details)
     return True, "No specific validator for this file type", details
 
 
+# ─────────────────────────────────────────────────────────────
+# Secret leak scan runs AFTER syntax is confirmed clean,
+# injected into details["secret_warnings"] by run_post_edit_diagnostics.
+# ─────────────────────────────────────────────────────────────
+
+def _inject_secret_warnings(file_path: str, content: str, details: dict) -> list[str]:
+    """
+    Run the secret leak guard and inject human-readable warnings into details.
+    Returns the list of formatted warning strings (may be empty).
+    """
+    findings = check_secret_in_file_write(file_path, content)
+    warnings = []
+    for f in findings:
+        msg = (
+            f"⚠️  Hardcoded {f['label']} detected on line {f['line']} "
+            f"({f['match']}) in {os.path.basename(file_path)}. "
+            f"Disarankan simpan di .env dan load via os.environ."
+        )
+        warnings.append(msg)
+    if warnings:
+        details["secret_warnings"] = warnings
+    return warnings
