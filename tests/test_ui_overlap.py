@@ -153,15 +153,55 @@ def test_menu_shimmer_and_glide_leave_no_residue(monkeypatch):
     monkeypatch.setitem(sys.modules, "msvcrt", fake)
     monkeypatch.setattr(sys, "platform", "win32")
 
-    t = _replay(lambda: im.interactive_select(
-        "Select AI Provider",
-        [
-            {"label": "Groq LPU", "description": "configured | Ultra Fast ~500 tok/…"},
-            {"label": "Cerebras", "description": "configured | Super Fast Cerebras"},
-            {"label": "OpenRouter", "description": "configured | Dynamic Model Disco…"},
-        ],
-    ))
-    rows = t.rows()
+    # Snapshot the grid every time a title bar is drawn (render or shimmer
+    # tick) so mid-display duplication — like a tick repainting the title
+    # over the first option row — is caught, not just end-of-run residue.
+    chunks: list = []
+    snaps: list = []
+
+    class SnapStream(StringIO):
+        def write(self, s):  # noqa: D102
+            chunks.append(s)
+            if "╭" in s:
+                t = Term()
+                t.feed("".join(chunks))
+                snaps.append(t.rows())
+            return len(s)
+
+    buf = SnapStream()
+    real = sys.stdout
+    sys.stdout = buf
+    try:
+        im.interactive_select(
+            "Select AI Provider",
+            [
+                {"label": "Groq LPU", "description": "configured | Ultra Fast ~500 tok/…"},
+                {"label": "Cerebras", "description": "configured | Super Fast Cerebras"},
+                {"label": "OpenRouter", "description": "configured | Dynamic Model Disco…"},
+            ],
+        )
+    finally:
+        sys.stdout = real
+
+    title = "Select AI Provider"
+    for idx, rows in enumerate(snaps):
+        hits = [l for l in rows if title in l]
+        assert len(hits) <= 1, (
+            f"snapshot #{idx}: title drawn {len(hits)} times — "
+            f"shimmer tick painted over an option row: {hits}"
+        )
+        # while the menu is on screen, all options must stay visible
+        if any("Groq LPU" in l for l in rows):
+            for label in ("Groq LPU", "Cerebras", "OpenRouter"):
+                assert any(label in l for l in rows), (
+                    f"snapshot #{idx}: option '{label}' erased while menu displayed"
+                )
+
+    # Final state = replay the COMPLETE byte stream (the last snapshot above
+    # is a mid-run frame taken at the last render, before Esc cleared it).
+    final = Term()
+    final.feed("".join(chunks))
+    rows = final.rows()
     residue = [l for l in rows if l.strip() and ("╭" in l or "Groq LPU" in l or "Cerebras" in l)]
     assert not residue, f"menu left residue after esc/glide: {residue}"
     assert any("Selection cancelled" in l for l in rows)

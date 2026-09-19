@@ -121,11 +121,12 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
         shimmer["center"] += _SHIMMER_STEP
         if shimmer["center"] > 1.35:
             shimmer["center"] = -0.35
-        # Jump to the title line (blank + title + N options + border below it)
-        sys.stdout.write(f"\033[{num_options + 2}F\r")
+        # Cursor sits on the empty line BELOW the hint (render ends with \n).
+        # Title row is N+3 lines up: hint, bottom border, N options, title.
+        sys.stdout.write(f"\033[{num_options + 3}F\r")
         write_title_bar(shimmer["center"], newline=False)
-        # Return to the hint line so navigation redraws stay anchored
-        sys.stdout.write(f"\033[{num_options + 2}B")
+        # Return to the same anchored row so navigation redraws stay put
+        sys.stdout.write(f"\033[{num_options + 3}B")
         sys.stdout.flush()
 
     def clear_menu():
