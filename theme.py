@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 import shutil
 import unicodedata
 
@@ -158,6 +159,79 @@ def gradient_text(text: str, start_rgb=(56, 189, 248), end_rgb=(168, 85, 247)) -
     return "".join(out)
 
 # ─────────────────────────────────────────────────────────────
+# MOTION ENGINE — traveling light bands & easing
+# ─────────────────────────────────────────────────────────────
+def lerp_rgb(a: tuple, b: tuple, t: float) -> tuple:
+    """Linear interpolation between two RGB tuples (t clamped to 0..1)."""
+    t = max(0.0, min(1.0, t))
+    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI SGR sequences from text."""
+    return _ANSI_RE.sub("", text)
+
+
+def shimmer_gradient(
+    text: str,
+    start_rgb: tuple = (56, 189, 248),
+    end_rgb: tuple = (168, 85, 247),
+    center: float = 0.0,
+    halfwidth: float = 0.16,
+    highlight_rgb: tuple = (224, 247, 255),
+) -> str:
+    """
+    Renders text with its base gradient PLUS a traveling ice-light band.
+    `center` is the band position as a 0..1 ratio across the text; characters
+    near the band glow toward `highlight_rgb`. Animate by sweeping `center`
+    from -0.3 to 1.3 across frames for a frosted shimmer sweep.
+
+    ANSI-aware: embedded SGR tokens pass through untouched and only visible
+    characters count toward band position — so already-colored lines (cards,
+    banners, borders) can be shimmered without breaking their styling.
+    """
+    if not text:
+        return ""
+    tokens = re.split(r"(\033\[[0-9;]*m)", text)
+    total = sum(len(t) for t in tokens if t and not _ANSI_RE.fullmatch(t))
+    if total == 0:
+        return text
+    out = []
+    seen = 0
+    for tok in tokens:
+        if not tok:
+            continue
+        if _ANSI_RE.fullmatch(tok):
+            out.append(tok)
+            continue
+        for ch in tok:
+            pos = seen / max(1, total - 1)
+            color = lerp_rgb(start_rgb, end_rgb, pos)
+            dist = abs(pos - center)
+            if dist < halfwidth:
+                glow = 1.0 - (dist / halfwidth)
+                color = lerp_rgb(color, highlight_rgb, glow * glow)  # ease-in glow
+            out.append(f"{rgb_color(*color)}{ch}")
+            seen += 1
+    out.append(RESET)
+    return "".join(out)
+
+
+def shimmer_text(
+    text: str,
+    base_rgb: tuple = (56, 189, 248),
+    highlight_rgb: tuple = (186, 230, 253),
+    center: float = 0.0,
+    halfwidth: float = 0.18,
+) -> str:
+    """Flat-color variant of shimmer_gradient: constant base, moving glow band."""
+    return shimmer_gradient(
+        text, base_rgb, base_rgb, center=center,
+        halfwidth=halfwidth, highlight_rgb=highlight_rgb,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
 # UI COMPONENTS & BADGES
 # ─────────────────────────────────────────────────────────────
 ICON_AI      = f"{FROST_CYAN}[AI]{RESET}"
@@ -228,6 +302,12 @@ class UI:
         """Render informational notifications."""
         print(f"  {FROST_CYAN}ℹ{RESET} {FROST_WHITE}{message}{RESET}")
 
+    # --- MICRO-RHYTHM ---
+    @staticmethod
+    def _beat(delay: float = 0.03):
+        """Tiny pause that gives multi-line outputs a soft entrance rhythm."""
+        time.sleep(delay)
+
     # --- SEMANTIC FILE OPERATIONS ---
     @staticmethod
     def file_created(filename: str):
@@ -235,7 +315,8 @@ class UI:
         ✦ Created
         └── filename
         """
-        print(f"  {FROST_MINT}✦{RESET} {BOLD}Created{RESET}")
+        print(f"  {FROST_MINT}{BOLD}✦{RESET} {BOLD}Created{RESET}")
+        UI._beat()
         print(f"  {FROST_DARK}└──{RESET} {FROST_WHITE}{filename}{RESET}")
 
     @staticmethod
@@ -244,7 +325,8 @@ class UI:
         ✦ Updated
         └── filename
         """
-        print(f"  {FROST_MINT}✦{RESET} {BOLD}Updated{RESET}")
+        print(f"  {FROST_MINT}{BOLD}✦{RESET} {BOLD}Updated{RESET}")
+        UI._beat()
         print(f"  {FROST_DARK}└──{RESET} {FROST_WHITE}{filename}{RESET}")
 
     @staticmethod
@@ -253,7 +335,8 @@ class UI:
         ✦ Deleted
         └── filename
         """
-        print(f"  {FROST_CORAL}✦{RESET} {BOLD}Deleted{RESET}")
+        print(f"  {FROST_CORAL}{BOLD}✦{RESET} {BOLD}Deleted{RESET}")
+        UI._beat()
         print(f"  {FROST_DARK}└──{RESET} {FROST_WHITE}{filename}{RESET}")
 
     @staticmethod
@@ -262,7 +345,8 @@ class UI:
         ✦ Created directory
         └── foldername
         """
-        print(f"  {FROST_MINT}✦{RESET} {BOLD}Created directory{RESET}")
+        print(f"  {FROST_MINT}{BOLD}✦{RESET} {BOLD}Created directory{RESET}")
+        UI._beat()
         print(f"  {FROST_DARK}└──{RESET} {FROST_WHITE}{foldername}{RESET}")
 
     @staticmethod
@@ -271,13 +355,15 @@ class UI:
         ✦ Renamed
         └── src → dst
         """
-        print(f"  {FROST_MINT}✦{RESET} {BOLD}Renamed{RESET}")
+        print(f"  {FROST_MINT}{BOLD}✦{RESET} {BOLD}Renamed{RESET}")
+        UI._beat()
         print(f"  {FROST_DARK}└──{RESET} {FROST_WHITE}{src}{RESET} {FROST_DARK}→{RESET} {FROST_WHITE}{dst}{RESET}")
 
     @staticmethod
     def syntax_warning(filename: str, syntax_msg: str):
         """Renders syntax validation results."""
         print(f"  {FROST_AMBER}⚠ Syntax:{RESET} {FROST_WHITE}{syntax_msg}{RESET}")
+        UI._beat()
         print(f"  {FROST_DARK}└── File is on disk — fix it before running.{RESET}")
 
     @staticmethod
@@ -296,11 +382,16 @@ class UI:
 
     @staticmethod
     def card_line(body: str, marker: str = " ", color: str = "", border_color: str = FROST_DARK, box_width: int = 60):
-        inner = max(8, box_width - 1)
-        chunks = wrap_by_display_width(body, inner)
+        """Body row inside the card: wraps text and closes the right border so
+        the frame reads as a full box. `marker` colors the leading glyph."""
+        inner = max(8, box_width - 2)
+        chunks = wrap_by_display_width(body, inner - 1)
         for idx, chunk in enumerate(chunks):
             lead = marker if idx == 0 else "↳"
-            print(f"  {border_color}│{RESET} {color}{lead}{chunk}{RESET}")
+            pad = " " * max(0, inner - 1 - display_width(chunk))
+            print(
+                f"  {border_color}│{RESET} {color}{lead}{chunk}{pad}{RESET} {border_color}│{RESET}"
+            )
 
     @staticmethod
     def card_end(border_color: str = FROST_DARK, box_width: int = 60):

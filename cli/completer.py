@@ -55,11 +55,16 @@ SLASH_COMMANDS = [
 
 if PROMPT_TOOLKIT_AVAILABLE:
     _frost_style = Style.from_dict({
-        "completion-menu":              "bg:#1e2433 #bae6fd",
-        "completion-menu.completion":   "bg:#1e2433 #bae6fd",
+        "completion-menu":                    "bg:#1e2433 #bae6fd",
+        "completion-menu.completion":         "bg:#1e2433 #94a3b8",
         "completion-menu.completion.current": "bg:#0f172a #38bdf8 bold",
-        "scrollbar.background":         "bg:#1e2433",
-        "scrollbar.button":             "bg:#334155",
+        "completion-menu.meta.completion":    "bg:#1e2433 #475569",
+        "completion-menu.meta.completion.current": "bg:#0f172a #64748b",
+        "completion-menu.multi-column-meta":  "bg:#1e2433 #475569",
+        "scrollbar.background":               "bg:#1e2433",
+        "scrollbar.button":                   "bg:#334155",
+        "scrollbar.button.background":        "bg:#1e2433",
+        "scrollbar.arrow":                    "bg:#334155 #38bdf8",
     })
 
     class KlyroCompleter(Completer):

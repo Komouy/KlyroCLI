@@ -65,7 +65,7 @@ from theme import (
     RESET, BOLD,
     FROST_CYAN, FROST_ICE, FROST_MINT, FROST_INDIGO,
     FROST_CORAL, FROST_AMBER, FROST_WHITE, FROST_DARK, FROST_GRAY,
-    get_git_branch,
+    get_git_branch, gradient_text,
 )
 
 
@@ -103,11 +103,13 @@ def render_top_bar(folder_aktif: str, ai_assistant) -> str:
     model_name = ai_assistant.current_model.split("/")[-1] if "/" in ai_assistant.current_model else ai_assistant.current_model
     is_router = getattr(ai_assistant, "smart_router_enabled", True)
     router_tag = f" {FROST_ICE}[auto]{RESET}" if is_router else ""
+    has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
+    key_dot = f"{FROST_MINT}●{RESET}" if has_key else f"{FROST_AMBER}○{RESET}"
 
     return (
-        f"  {FROST_DARK}╭─{RESET} {FROST_WHITE}{BOLD}{cwd_display}{RESET}"
+        f"  {FROST_CYAN}❄{RESET} {FROST_DARK}─{RESET} {FROST_WHITE}{BOLD}{cwd_display}{RESET}"
         f"{branch_part}"
-        f" {FROST_DARK}──{RESET} {FROST_CYAN}{prov_name}{router_tag}{RESET} {FROST_DARK}({model_name}){RESET}"
+        f" {FROST_DARK}──{RESET} {key_dot} {FROST_CYAN}{prov_name}{router_tag}{RESET} {FROST_DARK}({model_name}){RESET}"
     )
 
 
@@ -123,8 +125,16 @@ def render_micro_metrics(query_duration: float, full_response: str, ai_assistant
     time_str = f"{query_duration:.1f}s"
     tok_str = f"~{est_tokens:,} tok"
 
+    # Frost ribbon — 8-cell throughput meter (capped at 80 tok/s)
+    filled = int(round(min(max(speed_tps, 0.0), 80.0) / 80.0 * 8))
+    if filled > 0:
+        ribbon = gradient_text("▰" * filled + "▱" * (8 - filled), (56, 189, 248), (129, 140, 248))
+    else:
+        ribbon = f"{FROST_DARK}▱▱▱▱▱▱▱▱{RESET}"
+    tps_color = FROST_MINT if speed_tps >= 40 else FROST_CYAN
+
     print(
-        f"  {FROST_DARK}•{RESET} {FROST_CYAN}{tps_str}{RESET} "
+        f"  {ribbon} {FROST_DARK}•{RESET} {tps_color}{tps_str}{RESET} "
         f"{FROST_DARK}•{RESET} {FROST_ICE}{time_str}{RESET} "
         f"{FROST_DARK}•{RESET} {FROST_WHITE}{tok_str}{RESET} "
         f"{FROST_DARK}•{RESET} {FROST_GRAY}{prov_name} ({model_name}){RESET}\n"
@@ -170,18 +180,19 @@ def main():
 
             if _use_prompt_session:
                 try:
-                    ansi_prompt = ANSI("  \033[38;2;100;116;139m╰─\033[0m \033[38;2;56;189;248m>\033[0m ")
+                    ansi_prompt = ANSI("  \033[38;2;100;116;139m╰─\033[0m \033[38;2;56;189;248m\033[1m❯\033[0m ")
                     user_input = prompt_session.prompt(ansi_prompt).strip()
                 except KeyboardInterrupt:
                     print(f"\n  {FROST_DARK}(Interrupted. Type /exit to quit){RESET}\n")
                     continue
                 except EOFError:
-                    print(f"\n  {FROST_CYAN}Goodbye!{RESET}\n")
+                    print("\n  " + gradient_text("✦ Until next frost — goodbye ✦", (56, 189, 248), (129, 140, 248)) + "\n")
                     break
             else:
-                user_input = input("  \033[38;2;100;116;139m╰─\033[0m \033[38;2;56;189;248m>\033[0m ").strip()
+                user_input = input("  \033[38;2;100;116;139m╰─\033[0m \033[38;2;56;189;248m\033[1m❯\033[0m ").strip()
 
-            if not user_input:
+            import validations
+            if validations.check_empty_input(user_input):
                 continue
 
             # Guard: leftover input from a just-finished interactive program
@@ -249,6 +260,13 @@ def main():
                 continue
 
             # ── 3. AI Agentic Query (Real-Time Token Streaming) ───────────────
+            import validations
+            if not validations.check_ollama_preflight(ai_assistant):
+                continue
+
+            if not validations.check_dirty_git_guard(folder_aktif, user_input):
+                print(f"  {FROST_DARK}Operation aborted.{RESET}\n")
+                continue
             enriched_prompt, pinned_files, missing_files = file_manager.resolve_file_mentions(user_input, folder_aktif)
             if missing_files:
                 missing_str = ", ".join(f"@{m}" for m in missing_files)
@@ -457,7 +475,7 @@ def main():
         except KeyboardInterrupt:
             print(f"\n  {FROST_DARK}(Interrupted. Type /exit to quit){RESET}\n")
         except EOFError:
-            print(f"\n  {FROST_CYAN}Goodbye!{RESET}\n")
+            print("\n  " + gradient_text("✦ Until next frost — goodbye ✦", (56, 189, 248), (129, 140, 248)) + "\n")
             break
 
 

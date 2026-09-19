@@ -106,6 +106,14 @@ def test_ui_components():
     assert "╭" in out
     assert "│" in out
     assert "╰" in out
+    # New: card lines close the right border for a full-frame look
+    assert "╮" in out and "╯" in out
+    assert out.count("│") >= 2, "card body rows should be closed with a right border"
+    # New: semantic ops render with bold action glyph
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        UI.file_created("src/new.py")
+    assert "✦" in buf.getvalue()
 
     print("✅ All UI Abstraction Layer unit tests passed!")
 

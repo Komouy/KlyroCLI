@@ -1,5 +1,10 @@
 """
-cli/interactive_menu.py — Arrow-key navigable card menu for model & option selection
+cli/interactive_menu.py — Arrow-key navigable card menu for model & option selection.
+
+Nordic Frost motion design:
+  • Cascade entrance — options ripple in from the top on first reveal
+  • Glide transition — a ghost arrow trails the row just left for one settle frame
+  • Idle shimmer — a soft ice-light band sweeps across the menu title while waiting
 """
 
 import sys
@@ -9,9 +14,20 @@ from cli.spinner import static_box_width
 from theme import (
     RESET, BOLD,
     FROST_CYAN, FROST_ICE, FROST_MINT,
-    FROST_WHITE, FROST_DARK, FROST_GHOST,
-    keycap,
+    FROST_WHITE, FROST_GRAY, FROST_DARK, FROST_GHOST,
+    BG_CYAN_TINT,
+    keycap, shimmer_gradient,
 )
+
+# ── Motion tuning ────────────────────────────────────────────
+_ENTRANCE_DELAY = 0.014   # per-row stagger during the first reveal
+_SETTLE_DELAY   = 0.05    # glide frame hold when the selection moves
+_SHIMMER_EVERY  = 0.07    # idle shimmer tick interval (seconds)
+_SHIMMER_STEP   = 0.09    # band travel per tick (0..1 across the title)
+
+_TITLE_BASE = (56, 189, 248)    # FROST_CYAN
+_TITLE_END  = (129, 140, 248)   # FROST_INDIGO
+_TITLE_GLOW = (224, 247, 255)   # glacial white highlight
 
 
 def interactive_select(title: str, options: list[dict], default_idx: int = 0) -> int:
@@ -30,28 +46,77 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
     sys.stdout.flush()
 
     card_width = static_box_width(68)
+    shimmer = {"center": -0.35}
 
-    def print_menu():
-        # Title — sleek glowing header
-        sys.stdout.write(f"\n  {FROST_DARK}╭─ {FROST_CYAN}{BOLD}{title}{RESET} {FROST_DARK}{'─'*(card_width - len(title) - 5)}╮{RESET}\n")
-        for idx, opt in enumerate(options):
-            is_selected = (idx == current_idx)
-            if is_selected:
-                arrow  = f"{FROST_CYAN}❯{RESET}"
-                label  = f"{BOLD}{FROST_WHITE}{opt['label']:<24}{RESET}"
-                desc   = opt.get("description", "")
-                desc_c = f"{FROST_ICE}{desc}{RESET}"
-                sys.stdout.write(f"  {FROST_DARK}│{RESET}  {arrow} {label} {desc_c}\n")
-            else:
-                arrow  = " "
-                label  = f"{FROST_GHOST}{opt['label']:<24}{RESET}"
-                desc   = opt.get("description", "")
-                desc_c = f"{FROST_DARK}{desc}{RESET}"
-                sys.stdout.write(f"  {FROST_DARK}│{RESET}  {arrow} {label} {desc_c}\n")
-        # Bottom border & navigation hints
-        sys.stdout.write(f"  {FROST_DARK}╰{'─'*card_width}╯{RESET}\n")
-        nav_hint = f"  {keycap('↑/↓')} {FROST_DARK}Navigate{RESET}  {keycap('Enter')} {FROST_DARK}Select{RESET}  {keycap('Esc')} {FROST_DARK}Cancel{RESET}\n"
-        sys.stdout.write(nav_hint)
+    # ── Rendering helpers ─────────────────────────────────────
+    def title_fragment(center=None) -> str:
+        if center is None:
+            return f"{FROST_CYAN}{BOLD}{title}{RESET}"
+        return shimmer_gradient(
+            title, _TITLE_BASE, _TITLE_END,
+            center=center, highlight_rgb=_TITLE_GLOW,
+        )
+
+    def write_title_bar(center=None):
+        """Emit just the top border + (optionally shimmering) title line."""
+        pad = card_width - len(title) - 5
+        sys.stdout.write(
+            f"  {FROST_DARK}╭─ {title_fragment(center)}"
+            f" {FROST_DARK}{'─' * max(0, pad)}╮{RESET}\033[K\n"
+        )
+
+    def render_row(idx: int, selected: bool, ghost: bool = False) -> str:
+        opt = options[idx]
+        label = opt["label"][:24].ljust(24)
+        desc = opt.get("description", "")
+        if selected:
+            arrow = f"{FROST_CYAN}{BOLD}❯{RESET}"
+            body = (
+                f"{BG_CYAN_TINT} {BOLD}{FROST_WHITE}{label} {RESET}"
+                f"  {FROST_ICE}{desc}{RESET}"
+            )
+            return f"  {FROST_DARK}│{RESET} {arrow} {body}\n"
+        if ghost:
+            # glide trail: the row the selection just left
+            return (
+                f"  {FROST_DARK}│{RESET}  {FROST_DARK}·{RESET} "
+                f"{FROST_GRAY}{label}{RESET} {FROST_DARK}{desc}{RESET}\n"
+            )
+        return (
+            f"  {FROST_DARK}│{RESET}   "
+            f"{FROST_GHOST}{label}{RESET} {FROST_DARK}{desc}{RESET}\n"
+        )
+
+    def render(shimmer_center=None, ghost_idx=None, first=False):
+        """Draw the full menu. With first=True, cascade rows in one by one."""
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        write_title_bar(shimmer_center)
+        for idx in range(num_options):
+            is_selected = idx == current_idx
+            is_ghost = ghost_idx is not None and idx == ghost_idx and not is_selected
+            sys.stdout.write(render_row(idx, is_selected, is_ghost))
+            if first:
+                sys.stdout.flush()
+                time.sleep(_ENTRANCE_DELAY)
+        sys.stdout.write(f"  {FROST_DARK}╰{'─' * card_width}╯{RESET}\n")
+        sys.stdout.write(
+            f"  {keycap('↑/↓')} {FROST_DARK}Navigate{RESET}  "
+            f"{keycap('Enter')} {FROST_DARK}Select{RESET}  "
+            f"{keycap('Esc')} {FROST_DARK}Cancel{RESET}\n"
+        )
+        sys.stdout.flush()
+
+    def tick_shimmer():
+        """Advance the idle ice-light band across the title line in place."""
+        shimmer["center"] += _SHIMMER_STEP
+        if shimmer["center"] > 1.35:
+            shimmer["center"] = -0.35
+        # Jump to the title line (blank + title + N options + border below it)
+        sys.stdout.write(f"\033[{num_options + 2}F\r")
+        write_title_bar(shimmer["center"])
+        # Return to the hint line so navigation redraws stay anchored
+        sys.stdout.write(f"\033[{num_options + 2}B")
         sys.stdout.flush()
 
     def clear_menu():
@@ -61,89 +126,132 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
             sys.stdout.write("\033[F\033[K")
         sys.stdout.flush()
 
-    try:
-        print_menu()
-        while True:
-            key = None
-            try:
-                if sys.platform == "win32":
-                    import msvcrt
-                    while not msvcrt.kbhit():
-                        time.sleep(0.01)
-                    ch = msvcrt.getch()
-                    if ch in (b'\x00', b'\xe0'):
-                        ch2 = msvcrt.getch()
-                        if ch2 == b'H': key = 'up'
-                        elif ch2 == b'P': key = 'down'
-                    elif ch == b'\r':
-                        key = 'enter'
-                    elif ch == b'\x1b':
-                        key = 'esc'
-                    elif ch == b'\x03':
-                        raise KeyboardInterrupt()
+    def glide_to(prev_idx):
+        """Two-frame selection transition: ghost trail frame, then settle."""
+        clear_menu()
+        render(ghost_idx=prev_idx)
+        time.sleep(_SETTLE_DELAY)
+        clear_menu()
+        render()
+
+    # ── Key input with idle shimmer ───────────────────────────
+    def read_key():
+        """Blocking key read; shimmers the title while waiting. Returns key id."""
+        if sys.platform == "win32":
+            import msvcrt
+            last_tick = time.time()
+            while not msvcrt.kbhit():
+                now = time.time()
+                if now - last_tick >= _SHIMMER_EVERY:
+                    tick_shimmer()
+                    last_tick = now
+                time.sleep(0.02)
+            ch = msvcrt.getch()
+            if ch in (b"\x00", b"\xe0"):
+                ch2 = msvcrt.getch()
+                if ch2 == b"H":
+                    return "up"
+                if ch2 == b"P":
+                    return "down"
+                return None
+            if ch == b"\r":
+                return "enter"
+            if ch == b"\x1b":
+                return "esc"
+            if ch == b"\x03":
+                raise KeyboardInterrupt()
+            c = ch.decode(errors="ignore")
+            if c in ("k", "w", "K", "W"):
+                return "up"
+            if c in ("j", "s", "J", "S"):
+                return "down"
+            if c.isdigit() and 1 <= int(c) <= num_options:
+                return f"num_{c}"
+            return None
+
+        # POSIX / Termux
+        import tty, termios, select
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        _echoed = False
+        try:
+            tty.setraw(fd)
+            ch = None
+            while ch is None:
+                ready, _, _ = select.select([fd], [], [], _SHIMMER_EVERY)
+                if ready:
+                    ch = sys.stdin.read(1)
                 else:
-                    import tty, termios, select
-                    fd = sys.stdin.fileno()
-                    old_settings = termios.tcgetattr(fd)
-                    _echoed = False
-                    try:
-                        tty.setraw(fd)
-                        ch = sys.stdin.read(1)
-                        if ch == '\x1b':
-                            ready, _, _ = select.select([fd], [], [], 0.05)
-                            if ready:
-                                ch2 = sys.stdin.read(2)
-                                if ch2 == '[A': key = 'up'
-                                elif ch2 == '[B': key = 'down'
-                            else:
-                                key = 'esc'
-                        elif ch in ('\r', '\n'):
-                            key = 'enter'
-                        elif ch == '\x03':
-                            raise KeyboardInterrupt()
-                        elif ch in ('k', 'w', 'K', 'W'):  # vim/WASD up
-                            key = 'up'
-                            _echoed = True
-                        elif ch in ('j', 's', 'J', 'S'):  # vim/WASD down
-                            key = 'down'
-                            _echoed = True
-                        elif ch.isdigit() and 1 <= int(ch) <= num_options:
-                            # Number shortcut: press 1-9 to jump directly
-                            key = f'num_{ch}'
-                            _echoed = True
-                    finally:
-                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                        # Erase any character that might have been echoed by
-                        # the terminal emulator (common in Termux soft keyboard)
-                        if _echoed:
-                            sys.stdout.write('\r\033[K')
-                            sys.stdout.flush()
+                    tick_shimmer()
+            if ch == "\x1b":
+                ready, _, _ = select.select([fd], [], [], 0.05)
+                if ready:
+                    ch2 = sys.stdin.read(2)
+                    if ch2 == "[A":
+                        return "up"
+                    if ch2 == "[B":
+                        return "down"
+                return "esc"
+            if ch in ("\r", "\n"):
+                return "enter"
+            if ch == "\x03":
+                raise KeyboardInterrupt()
+            if ch in ("k", "w", "K", "W"):  # vim/WASD up
+                _echoed = True
+                return "up"
+            if ch in ("j", "s", "J", "S"):  # vim/WASD down
+                _echoed = True
+                return "down"
+            if ch.isdigit() and 1 <= int(ch) <= num_options:
+                _echoed = True
+                return f"num_{ch}"
+            return None
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            # Erase any character that might have been echoed by
+            # the terminal emulator (common in Termux soft keyboard)
+            if _echoed:
+                sys.stdout.write("\r\033[K")
+                sys.stdout.flush()
+
+
+
+    try:
+        render(first=True)
+        while True:
+            try:
+                key = read_key()
             except (KeyboardInterrupt, SystemExit):
                 clear_menu()
                 raise KeyboardInterrupt()
             except Exception:
                 break
 
-            if key == 'up':
-                current_idx = (current_idx - 1) % num_options
+            if key in ("up", "down") or (key and key.startswith("num_")):
+                prev_idx = current_idx
+                if key == "up":
+                    current_idx = (current_idx - 1) % num_options
+                elif key == "down":
+                    current_idx = (current_idx + 1) % num_options
+                else:
+                    current_idx = int(key[-1]) - 1
+                if current_idx != prev_idx:
+                    glide_to(prev_idx)
+                else:
+                    clear_menu()
+                    render()
+            elif key == "enter":
                 clear_menu()
-                print_menu()
-            elif key == 'down':
-                current_idx = (current_idx + 1) % num_options
-                clear_menu()
-                print_menu()
-            elif key and key.startswith('num_'):
-                current_idx = int(key[-1]) - 1
-                clear_menu()
-                print_menu()
-            elif key == 'enter':
-                clear_menu()
-                print(f"  {FROST_MINT}✔{RESET} Selected: {BOLD}{FROST_WHITE}{options[current_idx]['label']}{RESET}\n")
+                print(
+                    f"  {FROST_MINT}✔{RESET} Selected: "
+                    f"{BOLD}{FROST_WHITE}{options[current_idx]['label']}{RESET}\n"
+                )
                 return current_idx
-            elif key == 'esc':
+            elif key == "esc":
                 clear_menu()
                 print(f"  {FROST_DARK}Selection cancelled.{RESET}\n")
                 return -1
+            # key is None → unrecognised key, keep waiting
 
         # Fallback if standard keyboard reading fails
         sys.stdout.write("\033[?25h")

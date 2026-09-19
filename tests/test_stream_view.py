@@ -158,8 +158,12 @@ def test_code_block_buffer_live_counter():
     """Verify live shimmer wave and line counting when live_counter=True."""
     buf = CodeBlockBuffer(live_counter=True)
     open_out = buf.feed("```python:app.py\n")
-    assert "Generating python" in open_out
-    assert "[0 lines]" in open_out
+    # shimmer band recolors each visible char — assert on ANSI-stripped text
+    from theme import strip_ansi
+    visible_open = strip_ansi(open_out)
+    assert "Generating" in visible_open
+    assert "python" in visible_open
+    assert "[0 lines]" in visible_open
 
     line1_out = buf.feed("import os\n")
     assert "[1 lines]" in line1_out

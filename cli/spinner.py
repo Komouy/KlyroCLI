@@ -18,7 +18,8 @@ from theme import (
     RESET, BOLD,
     FROST_CYAN, FROST_AQUA, FROST_ICE, FROST_MINT, FROST_INDIGO,
     FROST_WHITE, FROST_GRAY, FROST_DARK, FROST_GHOST, FROST_AMBER,
-    gradient_text, get_git_branch,
+    BG_SURFACE, keycap,
+    gradient_text, shimmer_gradient, get_git_branch,
 )
 
 try:
@@ -192,40 +193,139 @@ class Spinner:
         sys.stdout.flush()
 
 
+def _progress_bar(label: str, pct: float, bar_color: str, width: int = 20) -> str:
+    """Render a compact inline progress bar."""
+    filled = int(width * pct)
+    bar = "█" * filled + "░" * (width - filled)
+    return f"{bar_color}{bar}{RESET} {FROST_DARK}{int(pct*100):3d}%{RESET}  {FROST_GRAY}{label}{RESET}"
+
+
+def _startup_step(
+    glyph_color: str,
+    label: str,
+    detail_fn,
+    steps: int = 8,
+    delay: float = 0.022,
+    bar_color: str = None,
+) -> None:
+    """Animate a single startup phase with spinner + progress bar, then print checkmark."""
+    glyphs = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    bar_c = bar_color or glyph_color
+    for i in range(steps):
+        g = glyphs[i % len(glyphs)]
+        pct = (i + 1) / steps
+        bar = _progress_bar(label, pct, bar_c)
+        sys.stdout.write(f"\r  {glyph_color}{g}{RESET}  {bar}\033[K")
+        sys.stdout.flush()
+        time.sleep(delay)
+    detail = detail_fn()
+    sys.stdout.write(f"\r  {FROST_MINT}✔{RESET}  {FROST_GRAY}{label}{RESET}  {detail}\033[K\n")
+    sys.stdout.flush()
+
+
 def print_banner(folder_path, ai_assistant):
-    """Render sleek modern dashboard banner with rounded card and git branch detection."""
+    """Rich dashboard card with shimmering frost frame, pills, and keycap shortcuts."""
+    import sys as _sys
+
     folder_name = os.path.basename(os.path.abspath(folder_path)) or folder_path
     files = file_manager.list_daftar_file(folder_path)
-    provider_name = ai_assistant.provider.upper()
-    model_name = ai_assistant.current_model or (MODEL_KECIL if ai_assistant.provider == "gemini" else GROQ_MODEL_CEPAT)
+    provider_name = provider_manager.PROVIDER_CATALOG.get(
+        ai_assistant.provider, {}
+    ).get("name", ai_assistant.provider.upper())
+    model_name = ai_assistant.current_model or (
+        MODEL_KECIL if ai_assistant.provider == "gemini" else GROQ_MODEL_CEPAT
+    )
+    model_short = model_name.split("/")[-1] if "/" in model_name else model_name
     git_branch = get_git_branch(folder_path)
+    has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
+    py_ver = f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
 
     term_width = shutil.get_terminal_size(fallback=(80, 24)).columns
-    card_w = max(24, min(68, term_width - 6))
+    card_w = max(24, min(72, term_width - 6))
 
+    TOP = f"  {FROST_DARK}╭{'─' * card_w}╮{RESET}"
+    BOT = f"  {FROST_DARK}╰{'─' * card_w}╯{RESET}"
     BAR = f"{FROST_DARK}│{RESET}"
-    top_border = f"  {FROST_DARK}╭{'─'*card_w}╮{RESET}"
-    bot_border = f"  {FROST_DARK}╰{'─'*card_w}╯{RESET}"
 
-    git_line = ""
+    def row(content: str) -> str:
+        return f"  {BAR}  {content}"
+
+    def divider_row(label: str) -> str:
+        label_str = f" {label} "
+        pad = max(0, card_w - len(label_str) - 1)
+        lpad = pad // 2
+        rpad = pad - lpad
+        return (
+            f"  {FROST_DARK}├{'─' * lpad}{RESET}"
+            f"{BG_SURFACE}{FROST_ICE}{BOLD}{label_str}{RESET}"
+            f"{FROST_DARK}{'─' * rpad}┤{RESET}"
+        )
+
+    lines = [TOP]
+    struct = {0}
+
+    def add_line(text: str, structural: bool = False):
+        lines.append(text)
+        if structural:
+            struct.add(len(lines) - 1)
+
+    # ── WORKSPACE ──
+    add_line(divider_row("WORKSPACE"), structural=True)
+    add_line(row(f"{FROST_GHOST}📁 folder   {RESET}{FROST_WHITE}{BOLD}{folder_name}{RESET}"))
+    add_line(row(f"{FROST_GHOST}📄 files    {RESET}{FROST_CYAN}{BOLD}{len(files)}{RESET}{FROST_DARK} files indexed{RESET}"))
     if git_branch:
-        git_line = f"\n  {BAR}  {FROST_GHOST}git branch{RESET}  {FROST_MINT}{git_branch}{RESET}"
+        branch_color = FROST_AMBER if "*" in git_branch else FROST_MINT
+        add_line(row(f"{FROST_GHOST}🌿 git      {RESET}{branch_color}{git_branch}{RESET}"))
 
-    print(f"\n{top_border}")
-    if card_w < 44:
-        # Compact display for mobile / narrow terminals (e.g. Termux portrait)
-        print(f"  {BAR}  {FROST_GHOST}ws {RESET}  {FROST_WHITE}{BOLD}{folder_name}{RESET} {FROST_DARK}({len(files)}f){RESET}{git_line}")
-        print(f"  {BAR}  {FROST_GHOST}ai {RESET}  {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_DARK}·{RESET} {FROST_ICE}{model_name[:16]}{RESET}")
-        print(f"  {BAR}  {FROST_DARK}Type or {FROST_CYAN}/help{FROST_DARK} for commands{RESET}")
+    # ── AI ENGINE ──
+    add_line(divider_row("AI ENGINE"), structural=True)
+    key_status = (
+        f"{FROST_MINT}● active{RESET}"
+        if has_key else
+        f"{FROST_AMBER}○ key missing  {FROST_DARK}/provider{RESET}"
+    )
+    add_line(row(f"{FROST_GHOST}🤖 provider {RESET}{FROST_INDIGO}{BOLD}{provider_name}{RESET}  {key_status}"))
+    add_line(row(f"{FROST_GHOST}⚡ model    {RESET}{FROST_ICE}{model_short}{RESET}"))
+    add_line(row(f"{FROST_GHOST}🐍 runtime  {RESET}{FROST_GRAY}Python {py_ver}{RESET}"))
+
+    # ── QUICK START ──
+    add_line(divider_row("QUICK START"), structural=True)
+    if card_w >= 52:
+        add_line(row(
+            f"{FROST_GHOST}try    {RESET}"
+            f"{keycap('/help')}  {keycap('/model')}  {keycap('/provider')}  {keycap('ESC')}"
+        ))
     else:
-        print(f"  {BAR}  {FROST_GHOST}workspace {RESET}  {FROST_WHITE}{BOLD}{folder_name}{RESET} {FROST_DARK}({len(files)} files indexed){RESET}{git_line}")
-        print(f"  {BAR}  {FROST_GHOST}ai engine {RESET}  {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_DARK}·{RESET} {FROST_ICE}{model_name}{RESET}")
-        print(f"  {BAR}  {FROST_DARK}Type anything to code, or {FROST_CYAN}/help{FROST_DARK} for command palette{RESET}")
-    print(f"{bot_border}\n")
+        add_line(row(
+            f"{keycap('/help')}{FROST_DARK} · {RESET}"
+            f"{keycap('/model')}{FROST_DARK} · {RESET}"
+            f"{keycap('ESC')}"
+        ))
+
+    lines.append(BOT)
+    struct.add(len(lines) - 1)
+
+    # Draw the card
+    print()
+    for ln in lines:
+        print(ln)
+    print()  # breathing room — cursor rests one line below the card
+
+    # ── Aurora sweep: ice-light glides along the frost frame only ──
+    n = len(lines)
+    for sweep in range(5):
+        center = -0.3 + (1.6 * sweep / 4)
+        sys.stdout.write(f"\033[{n}F\r")
+        for i, ln in enumerate(lines):
+            if i in struct:
+                ln = shimmer_gradient(ln, (71, 85, 105), (129, 140, 248), center=center)
+            sys.stdout.write(ln + "\n")
+        sys.stdout.flush()
+        time.sleep(0.05)
 
 
 def play_startup_animation(folder_path, ai_assistant):
-    """Lively startup intro animation with sweeping gradient ASCII logo and micro-step ticker."""
+    """Lively startup intro: gradient logo + ice-light shimmer sweep and micro-step ticker."""
     files = file_manager.list_daftar_file(folder_path)
     os.system("cls" if sys.platform == "win32" else "clear")
 
@@ -250,6 +350,22 @@ def play_startup_animation(folder_path, ai_assistant):
     if term_width >= 45:
         for line in logo_lines:
             print("  " + gradient_text(line, start_c, end_c))
+        sys.stdout.flush()
+
+        # ── Nordic shimmer sweep: an ice-light band glides across the logo ──
+        for sweep in range(7):
+            center = -0.35 + (1.7 * sweep / 6)
+            sys.stdout.write("\033[6F\r")
+            for line in logo_lines:
+                sys.stdout.write(
+                    "  " + shimmer_gradient(
+                        line, start_c, end_c,
+                        center=center, highlight_rgb=(224, 247, 255),
+                    ) + "\n"
+                )
+            sys.stdout.flush()
+            time.sleep(0.05)
+
         tagline = f"  {FROST_DARK}Autonomous Agentic CLI Coding Assistant • v2.5{RESET}"
     else:
         # Compact title for narrow mobile/Termux screens
