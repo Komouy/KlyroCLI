@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local User API Keys & Configuration (DO NOT COMMIT!)
+klyro_config.json
+.env
+.env.*
+
+# Local session/undo history — can contain full file contents
+# (including deleted files) and prompt/response logs
+.klyro/
+
+# Backups
+*.bak
+
+# Packaging / Distribution
+dist/
+build/
+*.egg-info/
+*.egg
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Opt-in debug dumps (KLYRO_DEBUG=1)
+debug-klyro.log
+debug-*.log
+*.log
+
+# Virtual environments & test cache
+.venv/
+venv/
+.pytest_cache/
+
+# Local Model files
+Modelfile*
+*.gguf
+

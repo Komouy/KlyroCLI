@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "klyrocli"
+version = "2.5.0"
+description = "Klyro Code — Agentic CLI Coding Assistant"
+requires-python = ">=3.10"
+dependencies = [
+    "prompt_toolkit>=3.0.0",
+    "google-genai>=0.3.0",
+]
+
+[project.scripts]
+KlyroCLI = "klyro_cli:main"
+klyro = "klyro_cli:main"
+
+[tool.setuptools]
+# NOTE: every module actually imported by klyro_cli.py OR the tests/ suite
+# (directly or transitively) must be listed here — for a non-editable
+# `pip install .`, setuptools only packages files named in py-modules, not
+# every .py file in the project directory. Audited against `ls *.py` +
+# grep for import statements; demo_agent.py is a standalone dev demo script
+# not imported by shipped modules or tests.
+py-modules = ["ai", "apply_actions", "approval_gate", "config", "consensus_engine", "doctor", "errors", "file_manager", "klyro_cli", "openrouter_registry", "provider_manager", "runner", "security", "session_manager", "stream_view", "theme", "undo_manager", "validations"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "tools*", "cli*", "commands*"]
+
+[tool.pytest.ini_options]
+# importlib mode ensures pytest always resolves imports from the live source
+# directory, not from any stale installed egg-info / .pyc in site-packages.
+addopts = "--import-mode=importlib"
