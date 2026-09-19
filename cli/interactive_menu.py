@@ -100,6 +100,13 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
                             key = 'enter'
                         elif ch == '\x03':
                             raise KeyboardInterrupt()
+                        elif ch in ('k', 'w', 'K', 'W'):  # vim/WASD up
+                            key = 'up'
+                        elif ch in ('j', 's', 'J', 'S'):  # vim/WASD down
+                            key = 'down'
+                        elif ch.isdigit() and 1 <= int(ch) <= num_options:
+                            # Number shortcut: press 1-9 to jump directly
+                            key = f'num_{ch}'
                     finally:
                         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             except (KeyboardInterrupt, SystemExit):
@@ -114,6 +121,10 @@ def interactive_select(title: str, options: list[dict], default_idx: int = 0) ->
                 print_menu()
             elif key == 'down':
                 current_idx = (current_idx + 1) % num_options
+                clear_menu()
+                print_menu()
+            elif key and key.startswith('num_'):
+                current_idx = int(key[-1]) - 1
                 clear_menu()
                 print_menu()
             elif key == 'enter':
