@@ -309,9 +309,13 @@ def print_banner(folder_path, ai_assistant):
     print()
     for ln in lines:
         print(clip_line(ln, term_width - 1))
-    print()  # breathing room — cursor rests one line below the card
+    # Cursor now rests on the empty line right after the bottom border.
 
     # ── Aurora sweep: ice-light glides along the frost frame only ──
+    # NOTE: the breathing-room blank is printed AFTER the sweep — printing it
+    # before would put the cursor one row too far down, and every sweep frame
+    # would repaint the whole card shifted one line low, duplicating the
+    # borders and section pills over the content rows (overlap bug).
     n = len(lines)
     for sweep in range(5):
         center = -0.3 + (1.6 * sweep / 4)
@@ -322,6 +326,7 @@ def print_banner(folder_path, ai_assistant):
             sys.stdout.write(clip_line(ln, term_width - 1) + "\n")
         sys.stdout.flush()
         time.sleep(0.05)
+    print()  # breathing room — after the sweep so cursor math stays anchored
 
 
 def play_startup_animation(folder_path, ai_assistant):
