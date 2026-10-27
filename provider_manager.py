@@ -171,13 +171,22 @@ def get_provider_models(provider: str, force_refresh: bool = False) -> list[dict
     filtering out any blacklisted dead models.
     Falls back to static PROVIDER_CATALOG if discovery is not available or fails.
     """
+    try:
+        from core.model_discovery import get_dead_model_manager
+        dead_mgr = get_dead_model_manager()
+    except Exception:
+        dead_mgr = None
+
     if not force_refresh:
         try:
             from core.model_crawler import get_model_crawler
             crawler = get_model_crawler()
             synced = crawler.get_synced_models(provider)
             if synced:
-                return synced
+                if dead_mgr:
+                    synced = [m for m in synced if not dead_mgr.is_dead(provider, m.get("id", ""))]
+                if synced:
+                    return synced
         except Exception:
             pass
 
@@ -185,18 +194,18 @@ def get_provider_models(provider: str, force_refresh: bool = False) -> list[dict
         from core.model_discovery import get_live_discovery
         discovered = get_live_discovery().get_models(provider, force_refresh=force_refresh)
         if discovered:
-            return discovered
+            if dead_mgr:
+                discovered = [m for m in discovered if not dead_mgr.is_dead(provider, m.get("id", ""))]
+            if discovered:
+                return discovered
     except Exception:
         pass
 
     cat = PROVIDER_CATALOG.get(provider.lower(), {})
     models = cat.get("models", [])
-    try:
-        from core.model_discovery import get_dead_model_manager
-        dead_mgr = get_dead_model_manager()
+    if dead_mgr:
         return [m for m in models if not dead_mgr.is_dead(provider, m.get("id", ""))]
-    except Exception:
-        return models
+    return models
 
 
 # Alias for backward compatibility

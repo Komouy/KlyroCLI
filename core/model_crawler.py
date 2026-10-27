@@ -87,8 +87,18 @@ class OfficialModelCrawler:
 
     def __init__(self, catalog_file: str = OFFICIAL_CATALOG_FILE):
         self.catalog_file = catalog_file
-        self.dead_mgr = get_dead_model_manager()
+        self._dead_mgr = None
         self._catalog: Dict[str, Any] = self._load_catalog()
+
+    @property
+    def dead_mgr(self):
+        if self._dead_mgr is not None:
+            return self._dead_mgr
+        return get_dead_model_manager()
+
+    @dead_mgr.setter
+    def dead_mgr(self, val):
+        self._dead_mgr = val
 
     def _load_catalog(self) -> Dict[str, Any]:
         if not os.path.exists(self.catalog_file):
