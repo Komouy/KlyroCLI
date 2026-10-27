@@ -110,7 +110,7 @@ TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
     WorkloadTier.LIGHT: [
         {"provider": "groq",       "model": "openai/gpt-oss-20b",        "label": "Groq LPU (~500 tok/s)"},
         {"provider": "claude",     "model": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku (Ultra Fast)"},
-        {"provider": "gemini",     "model": "gemini-2.5-flash-lite",     "label": "Gemini 2.5 Flash Lite"},
+        {"provider": "gemini",     "model": "gemini-3.5-flash-lite",     "label": "Gemini 3.5 Flash-Lite (Fast)"},
         {"provider": "openrouter", "model": "openrouter/auto",           "label": "OpenRouter Auto Free"},
         {"provider": "deepseek",   "model": "deepseek-v4-flash",         "label": "DeepSeek Flash"},
         {"provider": "openai",     "model": "gpt-4o-mini",               "label": "OpenAI GPT-4o Mini"},
@@ -121,7 +121,7 @@ TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
         {"provider": "openrouter", "model": "z-ai/glm-5.2:free",         "label": "OpenRouter GLM 5.2 Free"},
         {"provider": "deepseek",   "model": "deepseek-chat",             "label": "DeepSeek V3 (Top-tier Coding)"},
         {"provider": "claude",     "model": "claude-3-7-sonnet-20250219", "label": "Claude 3.7 Sonnet (Top-tier Coding)"},
-        {"provider": "gemini",     "model": "gemini-2.5-flash",          "label": "Gemini 2.5 Flash"},
+        {"provider": "gemini",     "model": "gemini-3.6-flash",          "label": "Gemini 3.6 Flash (Coding & Speed)"},
         {"provider": "openai",     "model": "gpt-4o",                    "label": "OpenAI GPT-4o"},
         {"provider": "custom",     "model": None,                        "label": "Local Ollama"},
     ],
@@ -129,13 +129,13 @@ TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
         {"provider": "deepseek",   "model": "deepseek-reasoner",         "label": "DeepSeek R1 (Thinking Mode)"},
         {"provider": "openrouter", "model": "nvidia/nemotron-3-super-120b-a12b:free", "label": "Nemotron 3 Super (Reasoning)"},
         {"provider": "claude",     "model": "claude-3-7-sonnet-20250219", "label": "Claude 3.7 Sonnet (Hybrid Reasoning)"},
-        {"provider": "gemini",     "model": "gemini-2.5-pro",            "label": "Gemini 2.5 Pro (Deep Reasoning)"},
+        {"provider": "gemini",     "model": "gemini-3.1-pro-preview",    "label": "Gemini 3.1 Pro (Reasoning)"},
         {"provider": "groq",       "model": "qwen/qwen3.8-27b",          "label": "Groq Qwen 27B Logic"},
         {"provider": "openai",     "model": "o3-mini",                   "label": "OpenAI o3-mini (Reasoning)"},
         {"provider": "custom",     "model": None,                        "label": "Local Ollama"},
     ],
     WorkloadTier.HEAVY: [
-        {"provider": "gemini",     "model": "gemini-2.5-pro",            "label": "Gemini 2.5 Pro (2M Context)"},
+        {"provider": "gemini",     "model": "gemini-4-argon",            "label": "Gemini 4 Argon (1M Context)"},
         {"provider": "openrouter", "model": "nvidia/nemotron-3.5-super-vl:free", "label": "Nemotron 3.5 Super VL Free (Long Context)"},
         {"provider": "claude",     "model": "claude-3-7-sonnet-20250219", "label": "Claude 3.7 Sonnet (200K Context)"},
         {"provider": "deepseek",   "model": "deepseek-chat",             "label": "DeepSeek Chat (64K Context)"},
@@ -152,10 +152,10 @@ TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
 
 PROVIDER_TIER_PREFERENCES: Dict[str, Dict[WorkloadTier, List[str]]] = {
     "gemini": {
-        WorkloadTier.LIGHT: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
-        WorkloadTier.CODE: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"],
-        WorkloadTier.REASONING: ["gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-2.5-flash"],
-        WorkloadTier.HEAVY: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+        WorkloadTier.LIGHT: ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"],
+        WorkloadTier.CODE: ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"],
+        WorkloadTier.REASONING: ["gemini-3.1-pro-preview", "gemini-4-argon", "gemini-3.6-flash", "gemini-3.8-flash"],
+        WorkloadTier.HEAVY: ["gemini-4-argon", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.1-pro-preview"],
     },
     "claude": {
         WorkloadTier.LIGHT: ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"],

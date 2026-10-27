@@ -298,14 +298,19 @@ class StreamIndenter:
         self.leading_spaces = 0
         self.col = 0
         self.word_buf = ""
+        self.ansi_buf = ""
         self.line_prefix_buf = ""
         self.continuation_indent = indent
         self.in_structural = False
         self.prefix_determined = False
 
     def feed(self, text: str) -> str:
-        if not text:
+        if not text and not self.ansi_buf:
             return ""
+
+        if self.ansi_buf:
+            text = self.ansi_buf + text
+            self.ansi_buf = ""
 
         # Normalize tabs to 2 spaces for consistent indentation
         text = text.replace("\t", "  ")
@@ -346,16 +351,31 @@ class StreamIndenter:
                 i += 1
                 continue
 
-            # Pass through ANSI escape sequences without consuming column width or indentation state
-            if ch == "\033" and i + 1 < n and text[i + 1] == "[":
-                end = i + 2
-                while end < n and not text[end].isalpha():
+            # Pass through ANSI escape sequences cleanly without consuming column width
+            # or desyncing word boundaries across chunks
+            if ch == "\033":
+                end = i + 1
+                if end < n and text[end] == "[":
                     end += 1
-                if end < n:
-                    end += 1
-                out.append(text[i:end])
-                i = end
-                continue
+                    while end < n and not text[end].isalpha():
+                        end += 1
+                    if end < n:
+                        end += 1
+                        seq = text[i:end]
+                        if self.at_line_start and not self.word_buf:
+                            out.append(seq)
+                        else:
+                            self.word_buf += seq
+                        i = end
+                        continue
+                    else:
+                        # Incomplete sequence at chunk boundary: buffer for next feed()
+                        self.ansi_buf = text[i:]
+                        break
+                elif end >= n:
+                    # Incomplete escape byte at chunk boundary: buffer for next feed()
+                    self.ansi_buf = text[i:]
+                    break
 
             if self.at_line_start:
                 if ch == " ":
@@ -409,17 +429,21 @@ class StreamIndenter:
         return "".join(out)
 
     def flush(self) -> str:
+        parts = []
+        if self.ansi_buf:
+            self.word_buf += self.ansi_buf
+            self.ansi_buf = ""
         if self.word_buf:
-            res = self.word_buf
+            parts.append(self.word_buf)
             self.word_buf = ""
-            return res
-        return ""
+        return "".join(parts)
 
     def reset(self):
         self.at_line_start = True
         self.leading_spaces = 0
         self.col = 0
         self.word_buf = ""
+        self.ansi_buf = ""
         self.line_prefix_buf = ""
         self.continuation_indent = self.indent
         self.in_structural = False
@@ -442,12 +466,16 @@ class ThinkingStreamHandler:
         self.thought_word_buf = ""
         self.thought_col = 0
 
-    def feed(self, chunk: str) -> str:
+    def feed_events(self, chunk: str) -> list[tuple[str, str]]:
+        """
+        Feeds streaming tokens and returns an ordered list of (event_type, text) pairs,
+        where event_type is either 'thought' or 'prose'.
+        """
         if not self.enabled or not chunk:
-            return chunk
+            return [("prose", chunk)] if (chunk and not self.in_thinking) else ([("thought", chunk)] if chunk else [])
 
         self.buffer += chunk
-        out = []
+        events = []
 
         while self.buffer:
             if not self.in_thinking:
@@ -460,7 +488,7 @@ class ThinkingStreamHandler:
 
                 if idx != -1:
                     if idx > 0:
-                        out.append(self.buffer[:idx])
+                        events.append(("prose", self.buffer[:idx]))
                     self.in_thinking = True
                     self.start_time = time.time()
                     self.line_started = False
@@ -474,7 +502,7 @@ class ThinkingStreamHandler:
                         f"\n  {FROST_DARK}╭─{RESET} {FROST_ICE}Thinking Process{RESET} "
                         f"{FROST_DARK}{'─' * bar_w}{RESET}\n"
                     )
-                    out.append(header)
+                    events.append(("thought", header))
                 else:
                     possible_prefixes = ("<", "<t", "<th", "<thi", "<thin", "<think", "<tho", "<thou", "<thought")
                     ends_with_prefix = any(self.buffer.endswith(p) for p in possible_prefixes)
@@ -482,11 +510,11 @@ class ThinkingStreamHandler:
                         p_match = next(p for p in sorted(possible_prefixes, key=len, reverse=True) if self.buffer.endswith(p))
                         safe_len = len(self.buffer) - len(p_match)
                         if safe_len > 0:
-                            out.append(self.buffer[:safe_len])
+                            events.append(("prose", self.buffer[:safe_len]))
                             self.buffer = self.buffer[safe_len:]
                         break
                     else:
-                        out.append(self.buffer)
+                        events.append(("prose", self.buffer))
                         self.buffer = ""
             else:
                 idx = self.buffer.find("</think>")
@@ -500,8 +528,8 @@ class ThinkingStreamHandler:
                     thought_segment = self.buffer[:idx]
                     self.buffer = self.buffer[idx + close_tag_len:]
                     if thought_segment:
-                        out.append(self._format_thought(thought_segment))
-                    out.append(self._close_thought_card())
+                        events.append(("thought", self._format_thought(thought_segment)))
+                    events.append(("thought", self._close_thought_card()))
                 else:
                     close_prefixes = ("<", "</", "</t", "</th", "</thi", "</thin", "</think", "</tho", "</thou")
                     ends_with_prefix = any(self.buffer.endswith(p) for p in close_prefixes)
@@ -509,14 +537,23 @@ class ThinkingStreamHandler:
                         p_match = next(p for p in sorted(close_prefixes, key=len, reverse=True) if self.buffer.endswith(p))
                         safe_len = len(self.buffer) - len(p_match)
                         if safe_len > 0:
-                            out.append(self._format_thought(self.buffer[:safe_len]))
+                            events.append(("thought", self._format_thought(self.buffer[:safe_len])))
                             self.buffer = self.buffer[safe_len:]
                         break
                     else:
-                        out.append(self._format_thought(self.buffer))
+                        events.append(("thought", self._format_thought(self.buffer)))
                         self.buffer = ""
 
-        return "".join(out)
+        return events
+
+    def feed_separated(self, chunk: str) -> tuple[str, str]:
+        events = self.feed_events(chunk)
+        t = "".join(txt for kind, txt in events if kind == "thought")
+        p = "".join(txt for kind, txt in events if kind == "prose")
+        return t, p
+
+    def feed(self, chunk: str) -> str:
+        return "".join(txt for _, txt in self.feed_events(chunk))
 
     def _format_thought(self, text: str) -> str:
         """Render thought lines with a left border and dim muted color, wrapping lines at margin."""
@@ -588,18 +625,27 @@ class ThinkingStreamHandler:
         )
         return "".join(out)
 
-    def flush(self) -> str:
-        out = []
+    def flush_events(self) -> list[tuple[str, str]]:
+        events = []
         if self.buffer:
             if self.in_thinking:
-                out.append(self._format_thought(self.buffer))
-                out.append(self._close_thought_card())
+                events.append(("thought", self._format_thought(self.buffer)))
+                events.append(("thought", self._close_thought_card()))
             else:
-                out.append(self.buffer)
+                events.append(("prose", self.buffer))
             self.buffer = ""
         elif self.in_thinking:
-            out.append(self._close_thought_card())
-        return "".join(out)
+            events.append(("thought", self._close_thought_card()))
+        return events
+
+    def flush_separated(self) -> tuple[str, str]:
+        events = self.flush_events()
+        t = "".join(txt for kind, txt in events if kind == "thought")
+        p = "".join(txt for kind, txt in events if kind == "prose")
+        return t, p
+
+    def flush(self) -> str:
+        return "".join(txt for _, txt in self.flush_events())
 
     def cancel(self) -> str:
         self.buffer = ""

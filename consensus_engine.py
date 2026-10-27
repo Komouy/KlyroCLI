@@ -41,8 +41,8 @@ CANDIDATE_TIMEOUT = 90  # detik
 # Judge priority: urutan provider yang dicoba sebagai judge
 # Gemini Flash diprioritaskan (gratis, context 1M, cukup kuat)
 JUDGE_PRIORITY = [
-    ("gemini",    "gemini-2.5-flash"),     # gratis, context 1M, reliable
-    ("gemini",    "gemini-2.5-pro"),       # lebih kuat kalau flash gagal
+    ("gemini",    "gemini-3.6-flash"),     # gratis, context 1M, reliable
+    ("gemini",    "gemini-3.1-pro-preview"), # lebih kuat kalau flash gagal
     ("deepseek",  "deepseek-reasoner"),
     ("openai",    "gpt-4o"),
     ("groq",      "llama-3.3-70b-versatile"),
@@ -52,7 +52,7 @@ JUDGE_PRIORITY = [
 
 # Model flagship per provider (kandidat terkuat)
 FLAGSHIP_MODELS = {
-    "gemini":     "gemini-2.5-flash",          # model resmi Google
+    "gemini":     "gemini-3.6-flash",          # model resmi Google
     "groq":       "llama-3.3-70b-versatile",
     "claude":     "claude-3-7-sonnet-20250219",
     "openrouter": "z-ai/glm-5.2:free",
@@ -63,14 +63,14 @@ FLAGSHIP_MODELS = {
 
 # Fallback kalau hanya Gemini yang tersedia
 GEMINI_FALLBACK_PAIR = [
-    ("gemini", "gemini-2.5-flash"),
-    ("gemini", "gemini-2.5-pro"),
+    ("gemini", "gemini-3.6-flash"),
+    ("gemini", "gemini-3.1-pro-preview"),
 ]
 
 # Model kecil/cepat untuk classifier — dipilih dari provider yang tersedia
 # Urutan prioritas: gratis dulu, paling ringan dulu
 CLASSIFIER_PRIORITY = [
-    ("gemini",    "gemini-2.5-flash"),     # gratis, reliable, akurat
+    ("gemini",    "gemini-3.5-flash-lite"),     # gratis, reliable, akurat
     ("claude",    "claude-3-5-haiku-20241022"), # cepat, ultra responsif
     ("groq",      "llama-3.1-8b-instant"),       # cepat, gratis
     ("openrouter","z-ai/glm-5.2:free"),

@@ -189,21 +189,21 @@ def test_smart_router_copilot_auto_routing_gemini(monkeypatch):
     prov, model, reason, tier = router.route("selamat pagi, apa kabar?", manual_override="gemini")
     assert prov == "gemini"
     assert tier == WorkloadTier.LIGHT
-    assert model in ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    assert model in ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
     assert "Auto" in reason
 
-    # 2. Coding -> flagship coding flash (2.5-flash)
+    # 2. Coding -> flagship coding flash (3.6-flash)
     prov, model, reason, tier = router.route("buatkan controller FastAPI dan model Pydantic", manual_override="gemini")
     assert prov == "gemini"
     assert tier == WorkloadTier.CODE
-    assert model in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]
+    assert model in ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"]
     assert "Auto" in reason
 
     # 3. Reasoning -> Pro model
     prov, model, reason, tier = router.route("pembuktian matematis dan kompleksitas big-o", manual_override="gemini")
     assert prov == "gemini"
     assert tier == WorkloadTier.REASONING
-    assert model in ["gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-2.5-flash"]
+    assert model in ["gemini-3.1-pro-preview", "gemini-4-argon", "gemini-3.6-flash", "gemini-3.8-flash"]
     assert "Auto" in reason
 
 
@@ -253,10 +253,10 @@ def test_ai_assistant_auto_routing_state_sync(monkeypatch):
     assert ai.current_model != "auto"  # Must be an actual model ID
     assert "Auto" in ai.model_info
 
-    # In-provider routing for Gemini: code -> gemini-2.5-flash
+    # In-provider routing for Gemini: code -> gemini-3.6-flash
     prov, model, reason = ai._route_for_task("buat fungsi login dan refactor controller")
     assert prov == "gemini"
-    assert "gemini-2.5-flash" in model or "gemini-2.5-pro" in model or "2.5" in model
+    assert "gemini-3.6-flash" in model or "gemini-3.8-flash" in model or "3." in model
 
     # When lock_provider=False (auto all), provider locking is released
     ai.set_model("auto", lock_provider=False)

@@ -343,36 +343,54 @@ def main():
 
                         # Four-stage pipeline:
                         #   1. CommentStripper       — removes <!--ACTION...--> tags
-                        #   2. ThinkingStreamHandler — formats <think>...</think> reasoning blocks
-                        #   3. CodeBlockBuffer       — hides code until closing fence
-                        #   4. StreamIndenter        — keeps clean 2-space left margin
+                        #   2. ThinkingStreamHandler — splits <think>...</think> reasoning blocks from response prose
+                        #   3. CodeBlockBuffer       — hides project code until closing fence (bypassed by thoughts)
+                        #   4. StreamIndenter        — keeps clean 2-space left margin & wraps at terminal width
                         stripped = stripper.feed(chunk)
-                        thought  = thinker.feed(stripped)
-                        visible  = code_buf.feed(thought)
-                        indented = indenter.feed(visible)
+                        for kind, text in thinker.feed_events(stripped):
+                            if kind == "thought":
+                                sys.stdout.write(text)
+                                sys.stdout.flush()
+                            else:
+                                visible = code_buf.feed(text)
+                                if visible:
+                                    indented = indenter.feed(visible)
+                                    if indented:
+                                        if not stream_color_on:
+                                            sys.stdout.write(FROST_WHITE)
+                                            stream_color_on = True
+                                        sys.stdout.write(indented)
+                                        sys.stdout.flush()
+                        full_response_chunks.append(chunk)
+
+                    # Flush stripper -> thinker -> code_buf -> indenter
+                    stripped_flush = stripper.flush()
+                    events = thinker.feed_events(stripped_flush) if stripped_flush else []
+                    events.extend(thinker.flush_events())
+                    for kind, text in events:
+                        if kind == "thought":
+                            sys.stdout.write(text)
+                            sys.stdout.flush()
+                        else:
+                            visible = code_buf.feed(text)
+                            if visible:
+                                indented = indenter.feed(visible)
+                                if indented:
+                                    if not stream_color_on:
+                                        sys.stdout.write(FROST_WHITE)
+                                        stream_color_on = True
+                                    sys.stdout.write(indented)
+                                    sys.stdout.flush()
+
+                    last_flush = code_buf.flush()
+                    if last_flush:
+                        indented = indenter.feed(last_flush)
                         if indented:
                             if not stream_color_on:
                                 sys.stdout.write(FROST_WHITE)
                                 stream_color_on = True
                             sys.stdout.write(indented)
                             sys.stdout.flush()
-                        full_response_chunks.append(chunk)
-
-                    # Flush stripper -> thinker -> code_buf -> indenter
-                    stripped_flush = stripper.flush()
-                    thought_flush  = thinker.feed(stripped_flush) if stripped_flush else ""
-                    thought_final  = thinker.flush()
-                    visible_flush  = code_buf.feed(thought_flush + thought_final)
-                    last_flush     = code_buf.flush()
-                    for part in (visible_flush, last_flush):
-                        if part:
-                            indented = indenter.feed(part)
-                            if indented:
-                                if not stream_color_on:
-                                    sys.stdout.write(FROST_WHITE)
-                                    stream_color_on = True
-                                sys.stdout.write(indented)
-                                sys.stdout.flush()
                     indented_last = indenter.flush()
                     if indented_last:
                         if not stream_color_on:

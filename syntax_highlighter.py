@@ -108,24 +108,30 @@ def highlight_line(line: str, lang: str = "python") -> str:
 
 
 def _highlight_json_line(line: str) -> str:
-    # Keys: "key":
-    def repl_key(m):
-        return f'{FROST_CYAN}"{m.group(1)}"{RESET}:'
-    line = re.sub(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s*:', repl_key, line)
-
-    # String values: : "value"
-    def repl_val(m):
-        prefix = m.group(1)
-        val = m.group(2)
-        return f'{prefix}{FROST_MINT}"{val}"{RESET}'
-    line = re.sub(r'(:\s*)"([^"\\]*(?:\\.[^"\\]*)*)"', repl_val, line)
-
-    # Numbers
-    line = re.sub(r'\b(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b', f'{FROST_AMBER}\\1{RESET}', line)
-
-    # Booleans & null
-    line = re.sub(r'\b(true|false|null)\b', f'{FROST_ICE}\\1{RESET}', line)
-    return line
+    # Single-pass tokenization: ensures numbers in strings/ANSI are never re-matched
+    json_token_spec = re.compile(
+        r'(?P<KEY>"([^"\\]|\\.)*"\s*:)'
+        r'|(?P<STRING>"([^"\\]|\\.)*")'
+        r'|(?P<NUMBER>\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)'
+        r'|(?P<BOOL>\b(?:true|false|null)\b)'
+        r'|(?P<OTHER>[^"\d\-tfn:]+|[:\-])'
+    )
+    out = []
+    for m in json_token_spec.finditer(line):
+        kind = m.lastgroup
+        val = m.group(kind)
+        if kind == "KEY":
+            k, c = val.rsplit(":", 1)
+            out.append(f"{FROST_CYAN}{k}{RESET}:{c}")
+        elif kind == "STRING":
+            out.append(f"{FROST_MINT}{val}{RESET}")
+        elif kind == "NUMBER":
+            out.append(f"{FROST_AMBER}{val}{RESET}")
+        elif kind == "BOOL":
+            out.append(f"{FROST_ICE}{val}{RESET}")
+        else:
+            out.append(val)
+    return "".join(out)
 
 
 def _highlight_markdown_line(line: str) -> str:
@@ -195,31 +201,52 @@ def _highlight_general_line(line: str, lang: str) -> str:
         keywords = PYTHON_KEYWORDS | JS_KEYWORDS
         builtins = PYTHON_BUILTINS | JS_BUILTINS
 
-    # Regex token replacement on code_part
-    # 1. Strings: "...", '...', `...`
-    def repl_string(m):
-        return f"{FROST_MINT}{m.group(0)}{RESET}"
-    code_part = re.sub(r'("([^"\\]|\\.)*"|\'([^\'\\]|\\.)*\'|`([^`\\]|\\.)*`)', repl_string, code_part)
+    # Single-pass regex tokenizer: scans from left-to-right once, avoiding any
+    # nested re-matching of numbers or keywords inside previously added ANSI SGR codes
+    token_spec = re.compile(
+        r'(?P<STRING>"([^"\\]|\\.)*"|\'([^\'\\]|\\.)*\'|`([^`\\]|\\.)*`)'
+        r'|(?P<DECORATOR>@\w+)'
+        r'|(?P<NUMBER>\b(?:\d+(?:\.\d+)?|0x[0-9a-fA-F]+)\b)'
+        r'|(?P<IDENT>\b[a-zA-Z_]\w*\b)'
+        r'|(?P<OTHER>[^\w"\'`@]+)'
+    )
 
-    # 2. Decorators (Python / TS)
-    if lang in ("python", "typescript"):
-        code_part = re.sub(r'(@\w+)', f'{FROST_CORAL}\\1{RESET}', code_part)
+    out = []
+    prev_kw = None
+    for m in token_spec.finditer(code_part):
+        kind = m.lastgroup
+        val = m.group(kind)
+        if kind == "STRING":
+            out.append(f"{FROST_MINT}{val}{RESET}")
+            prev_kw = None
+        elif kind == "DECORATOR":
+            if lang in ("python", "typescript"):
+                out.append(f"{FROST_CORAL}{val}{RESET}")
+            else:
+                out.append(val)
+            prev_kw = None
+        elif kind == "NUMBER":
+            out.append(f"{FROST_AMBER}{val}{RESET}")
+            prev_kw = None
+        elif kind == "IDENT":
+            if prev_kw in ("def", "function"):
+                out.append(f"{FROST_INDIGO}{BOLD}{val}{RESET}")
+                prev_kw = None
+            elif val in keywords:
+                out.append(f"{FROST_CYAN}{val}{RESET}")
+                prev_kw = val
+            elif val in builtins:
+                out.append(f"{FROST_ICE}{val}{RESET}")
+                prev_kw = None
+            else:
+                out.append(val)
+                prev_kw = None
+        else:
+            out.append(val)
+            if not val.isspace():
+                prev_kw = None
 
-    # 3. Numbers
-    code_part = re.sub(r'\b(\d+(?:\.\d+)?|0x[0-9a-fA-F]+)\b', f'{FROST_AMBER}\\1{RESET}', code_part)
-
-    # 4. Keywords
-    kw_pattern = r'\b(' + '|'.join(re.escape(k) for k in keywords) + r')\b'
-    code_part = re.sub(kw_pattern, f'{FROST_CYAN}\\1{RESET}', code_part)
-
-    # 5. Builtins / Booleans
-    bi_pattern = r'\b(' + '|'.join(re.escape(b) for b in builtins) + r')\b'
-    code_part = re.sub(bi_pattern, f'{FROST_ICE}\\1{RESET}', code_part)
-
-    # 6. Function definitions: def foo( / function foo(
-    code_part = re.sub(r'\b(def|function)\s+([a-zA-Z0-9_]+)', f'{FROST_CYAN}\\1{RESET} {FROST_INDIGO}{BOLD}\\2{RESET}', code_part)
-
-    return code_part + comment_part
+    return "".join(out) + comment_part
 
 
 def highlight_code_block(code_lines: list[str], lang: str = "python") -> list[str]:
