@@ -64,7 +64,7 @@ def classify_workload(prompt: str, context_chars: int = 0, file_count: int = 0) 
     if not prompt:
         return WorkloadTier.LIGHT, "Empty query (speed priority)"
 
-    q = prompt.lower()
+    q = prompt.lower().strip()
     n_words = len(q.split())
 
     # 1. Heavy context check: explicit whole-project request OR large context across project
@@ -73,6 +73,15 @@ def classify_workload(prompt: str, context_chars: int = 0, file_count: int = 0) 
 
     if context_chars > 45_000:
         return WorkloadTier.HEAVY, f"High context workload ({context_chars:,} chars across {file_count} files)"
+
+    # Conversational greeting & quick query guard (when context is normal/light)
+    quick_greetings = {"halo", "hai", "hello", "hi", "hey", "p", "tes", "test", "ping", "selamat pagi", "selamat siang", "selamat malam", "terima kasih", "makasih", "thanks", "siapa kamu", "bantuan", "help"}
+    is_casual = (
+        q in quick_greetings or
+        (n_words <= 4 and any(g in q for g in ["halo", "hai", "hello", "hi", "hey", "pagi", "siang", "malam", "apa kabar", "terima kasih", "makasih"]))
+    )
+    if is_casual:
+        return WorkloadTier.LIGHT, "Conversational greeting / quick chat (speed priority)"
 
     # 2. Deep reasoning check
     if any(kw in q for kw in REASONING_KEYWORDS):
@@ -99,40 +108,40 @@ def classify_workload(prompt: str, context_chars: int = 0, file_count: int = 0) 
 
 TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
     WorkloadTier.LIGHT: [
-        {"provider": "groq",       "model": "openai/gpt-oss-20b",       "label": "Groq LPU (~500 tok/s)"},
-        {"provider": "claude",     "model": "claude-3-5-haiku-20241022","label": "Claude 3.5 Haiku (Ultra Fast)"},
-        {"provider": "gemini",     "model": "gemini-3.5-flash-lite",    "label": "Gemini Flash Lite"},
-        {"provider": "openrouter", "model": "openrouter/auto",          "label": "OpenRouter Auto Free"},
-        {"provider": "deepseek",   "model": "deepseek-v4-flash",        "label": "DeepSeek Flash"},
-        {"provider": "openai",     "model": "gpt-4o-mini",              "label": "OpenAI GPT-4o Mini"},
-        {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
+        {"provider": "groq",       "model": "openai/gpt-oss-20b",        "label": "Groq LPU (~500 tok/s)"},
+        {"provider": "claude",     "model": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku (Ultra Fast)"},
+        {"provider": "gemini",     "model": "gemini-2.5-flash-lite",     "label": "Gemini 2.5 Flash Lite"},
+        {"provider": "openrouter", "model": "openrouter/auto",           "label": "OpenRouter Auto Free"},
+        {"provider": "deepseek",   "model": "deepseek-v4-flash",         "label": "DeepSeek Flash"},
+        {"provider": "openai",     "model": "gpt-4o-mini",               "label": "OpenAI GPT-4o Mini"},
+        {"provider": "custom",     "model": None,                        "label": "Local Ollama"},
     ],
     WorkloadTier.CODE: [
-        {"provider": "groq",       "model": "openai/gpt-oss-120b",      "label": "Groq Flagship 120B"},
-        {"provider": "openrouter", "model": "z-ai/glm-5.2:free",        "label": "OpenRouter GLM 5.2 Free"},
-        {"provider": "deepseek",   "model": "deepseek-chat",            "label": "DeepSeek V3 (Top-tier Coding)"},
-        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219","label": "Claude 3.7 Sonnet (Top-tier Coding)"},
-        {"provider": "gemini",     "model": "gemini-3.6-flash",         "label": "Gemini 3.6 Flash"},
-        {"provider": "openai",     "model": "gpt-4o",                   "label": "OpenAI GPT-4o"},
-        {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
+        {"provider": "groq",       "model": "openai/gpt-oss-120b",       "label": "Groq Flagship 120B"},
+        {"provider": "openrouter", "model": "z-ai/glm-5.2:free",         "label": "OpenRouter GLM 5.2 Free"},
+        {"provider": "deepseek",   "model": "deepseek-chat",             "label": "DeepSeek V3 (Top-tier Coding)"},
+        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219", "label": "Claude 3.7 Sonnet (Top-tier Coding)"},
+        {"provider": "gemini",     "model": "gemini-2.5-flash",          "label": "Gemini 2.5 Flash"},
+        {"provider": "openai",     "model": "gpt-4o",                    "label": "OpenAI GPT-4o"},
+        {"provider": "custom",     "model": None,                        "label": "Local Ollama"},
     ],
     WorkloadTier.REASONING: [
-        {"provider": "deepseek",   "model": "deepseek-reasoner",        "label": "DeepSeek R1 (Thinking Mode)"},
+        {"provider": "deepseek",   "model": "deepseek-reasoner",         "label": "DeepSeek R1 (Thinking Mode)"},
         {"provider": "openrouter", "model": "nvidia/nemotron-3-super-120b-a12b:free", "label": "Nemotron 3 Super (Reasoning)"},
-        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219","label": "Claude 3.7 Sonnet (Hybrid Reasoning)"},
-        {"provider": "gemini",     "model": "gemini-3.1-pro-preview",   "label": "Gemini 3.1 Pro (Complex Logic)"},
-        {"provider": "groq",       "model": "qwen/qwen3.8-27b",         "label": "Groq Qwen 27B Logic"},
-        {"provider": "openai",     "model": "o3-mini",                  "label": "OpenAI o3-mini (Reasoning)"},
-        {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
+        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219", "label": "Claude 3.7 Sonnet (Hybrid Reasoning)"},
+        {"provider": "gemini",     "model": "gemini-2.5-pro",            "label": "Gemini 2.5 Pro (Deep Reasoning)"},
+        {"provider": "groq",       "model": "qwen/qwen3.8-27b",          "label": "Groq Qwen 27B Logic"},
+        {"provider": "openai",     "model": "o3-mini",                   "label": "OpenAI o3-mini (Reasoning)"},
+        {"provider": "custom",     "model": None,                        "label": "Local Ollama"},
     ],
     WorkloadTier.HEAVY: [
-        {"provider": "gemini",     "model": "gemini-3.6-flash",         "label": "Gemini 3.6 (1M Token Context)"},
-        {"provider": "openrouter", "model": "minimax/minimax-m3:free",  "label": "MiniMax M3 Free (1M Context)"},
-        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219","label": "Claude 3.7 Sonnet (200K Context)"},
-        {"provider": "deepseek",   "model": "deepseek-chat",            "label": "DeepSeek Chat (64K Context)"},
-        {"provider": "groq",       "model": "openai/gpt-oss-120b",      "label": "Groq 120B"},
-        {"provider": "openai",     "model": "gpt-4o",                   "label": "OpenAI GPT-4o"},
-        {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
+        {"provider": "gemini",     "model": "gemini-2.5-pro",            "label": "Gemini 2.5 Pro (2M Context)"},
+        {"provider": "openrouter", "model": "nvidia/nemotron-3.5-super-vl:free", "label": "Nemotron 3.5 Super VL Free (Long Context)"},
+        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219", "label": "Claude 3.7 Sonnet (200K Context)"},
+        {"provider": "deepseek",   "model": "deepseek-chat",             "label": "DeepSeek Chat (64K Context)"},
+        {"provider": "groq",       "model": "openai/gpt-oss-120b",       "label": "Groq 120B"},
+        {"provider": "openai",     "model": "gpt-4o",                    "label": "OpenAI GPT-4o"},
+        {"provider": "custom",     "model": None,                        "label": "Local Ollama"},
     ],
 }
 
@@ -143,10 +152,10 @@ TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
 
 PROVIDER_TIER_PREFERENCES: Dict[str, Dict[WorkloadTier, List[str]]] = {
     "gemini": {
-        WorkloadTier.LIGHT: ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-2.0-flash"],
-        WorkloadTier.CODE: ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"],
-        WorkloadTier.REASONING: ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.1-pro-preview", "gemini-2.5-pro"],
-        WorkloadTier.HEAVY: ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-pro"],
+        WorkloadTier.LIGHT: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
+        WorkloadTier.CODE: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"],
+        WorkloadTier.REASONING: ["gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-2.5-flash"],
+        WorkloadTier.HEAVY: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
     },
     "claude": {
         WorkloadTier.LIGHT: ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"],
@@ -176,7 +185,7 @@ PROVIDER_TIER_PREFERENCES: Dict[str, Dict[WorkloadTier, List[str]]] = {
         WorkloadTier.LIGHT: ["openrouter/auto", "meta-llama/llama-3.1-8b-instruct:free"],
         WorkloadTier.CODE: ["z-ai/glm-5.2:free", "mistralai/codestral-2501:free"],
         WorkloadTier.REASONING: ["deepseek/deepseek-r1:free", "nvidia/nemotron-3-super-120b-a12b:free"],
-        WorkloadTier.HEAVY: ["minimax/minimax-m3:free", "google/gemini-2.0-flash-exp:free"],
+        WorkloadTier.HEAVY: ["nvidia/nemotron-3.5-super-vl:free", "nvidia/nemotron-3-super-120b-a12b:free"],
     },
     "custom": {
         WorkloadTier.LIGHT: [],
@@ -341,6 +350,49 @@ class SmartRouter:
                     continue
                 candidates.append((prov, model, cat.get("name", prov)))
                 excludes.add(prov)
+
+        return candidates
+
+    def get_intra_provider_candidates(
+        self,
+        provider: str,
+        tier: WorkloadTier,
+        exclude_models: Optional[List[str]] = None
+    ) -> List[str]:
+        """
+        Returns an ordered list of replacement model IDs within the SAME provider
+        before any cross-provider fallback is attempted.
+        """
+        excludes = set(exclude_models or [])
+        try:
+            from core.model_discovery import get_dead_model_manager
+            dead_mgr = get_dead_model_manager()
+        except Exception:
+            dead_mgr = None
+
+        tier_prefs = PROVIDER_TIER_PREFERENCES.get(provider, {}).get(tier, [])
+        candidates: List[str] = []
+
+        # 1. Models designated for this specific tier
+        for m in tier_prefs:
+            if m not in excludes and not (dead_mgr and dead_mgr.is_dead(provider, m)):
+                candidates.append(m)
+                excludes.add(m)
+
+        # 2. Models from other tiers for this provider
+        for other_tier, m_list in PROVIDER_TIER_PREFERENCES.get(provider, {}).items():
+            if other_tier == tier:
+                continue
+            for m in m_list:
+                if m not in excludes and not (dead_mgr and dead_mgr.is_dead(provider, m)):
+                    candidates.append(m)
+                    excludes.add(m)
+
+        # 3. Provider default model from catalog if not tried yet
+        cat = provider_manager.PROVIDER_CATALOG.get(provider, {})
+        default_m = cat.get("default_model", "")
+        if default_m and default_m not in excludes and not (dead_mgr and dead_mgr.is_dead(provider, default_m)):
+            candidates.append(default_m)
 
         return candidates
 

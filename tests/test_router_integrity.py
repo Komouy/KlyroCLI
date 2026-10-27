@@ -149,7 +149,7 @@ EXPECTED_ALL_KEYS = {
     WorkloadTier.LIGHT: ("groq", "openai/gpt-oss-20b"),
     WorkloadTier.CODE: ("groq", "openai/gpt-oss-120b"),
     WorkloadTier.REASONING: ("deepseek", "deepseek-reasoner"),
-    WorkloadTier.HEAVY: ("gemini", "gemini-3.6-flash"),
+    WorkloadTier.HEAVY: ("gemini", "gemini-2.5-pro"),
 }
 
 # tier -> expected route when only {groq, gemini} have keys:
@@ -157,8 +157,8 @@ EXPECTED_ALL_KEYS = {
 EXPECTED_SUBSET_KEYS = {
     WorkloadTier.LIGHT: ("groq", "openai/gpt-oss-20b"),
     WorkloadTier.CODE: ("groq", "openai/gpt-oss-120b"),
-    WorkloadTier.REASONING: ("gemini", "gemini-3.1-pro-preview"),
-    WorkloadTier.HEAVY: ("gemini", "gemini-3.6-flash"),
+    WorkloadTier.REASONING: ("gemini", "gemini-2.5-pro"),
+    WorkloadTier.HEAVY: ("gemini", "gemini-2.5-pro"),
 }
 
 
@@ -229,7 +229,7 @@ EXPECTED_AFTER_DISRUPTION = {
     (WorkloadTier.LIGHT, "groq"): ("claude", "claude-3-5-haiku-20241022"),
     (WorkloadTier.CODE, "groq"): ("openrouter", "z-ai/glm-5.2:free"),
     (WorkloadTier.REASONING, "deepseek"): ("openrouter", "nvidia/nemotron-3-super-120b-a12b:free"),
-    (WorkloadTier.HEAVY, "gemini"): ("openrouter", "minimax/minimax-m3:free"),
+    (WorkloadTier.HEAVY, "gemini"): ("openrouter", "nvidia/nemotron-3.5-super-vl:free"),
 }
 
 
@@ -280,7 +280,7 @@ def test_route_temp_and_param_exclusion_combine(monkeypatch):
         TIER_PROMPTS[WorkloadTier.LIGHT], exclude_providers=["claude"]
     )
     assert tier == WorkloadTier.LIGHT
-    assert (prov, model) == ("gemini", "gemini-3.5-flash-lite")
+    assert (prov, model) == ("gemini", "gemini-2.5-flash-lite")
     router.reset_exclusions()
     prov, model, _r, _t = router.route(TIER_PROMPTS[WorkloadTier.LIGHT])
     assert (prov, model) == EXPECTED_ALL_KEYS[WorkloadTier.LIGHT]
@@ -314,11 +314,11 @@ def test_route_all_provider_models_dead_degrades_to_active_provider(monkeypatch,
     dead_mgr = DeadModelManager(file_path=str(tmp_path / "dead_models.json"))
     dead_mgr.evict("custom", custom_default, "unit-test eviction")
     router = SmartRouter()
-    sentinel = ("gemini", "gemini-3.6-flash", "Sentinel Active", "")
+    sentinel = ("gemini", "gemini-2.5-flash", "Sentinel Active", "")
     with patch("core.model_discovery.get_dead_model_manager", return_value=dead_mgr), \
          patch.object(provider_manager, "get_active_provider", return_value=sentinel):
         prov, model, reason, tier = router.route(TIER_PROMPTS[WorkloadTier.HEAVY])
-    assert (prov, model) == ("gemini", "gemini-3.6-flash")
+    assert (prov, model) == ("gemini", "gemini-2.5-flash")
     assert reason == "Default Provider (No other alternatives ready)"
     assert tier == WorkloadTier.HEAVY
 

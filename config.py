@@ -9,8 +9,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 API_KEY = GEMINI_API_KEY
 
 # Model Gemini — Auto-Selection
-MODEL_KECIL = "gemini-3.5-flash-lite"   # Ringan, gratis, untuk proyek kecil
-MODEL_BESAR = "gemini-3.6-flash"        # Lebih kuat, untuk proyek menengah/besar
+MODEL_KECIL = "gemini-2.5-flash-lite"   # Ringan, gratis, untuk proyek kecil
+MODEL_BESAR = "gemini-2.5-flash"        # Lebih kuat, untuk proyek menengah/besar
 
 # ─────────────────────────────────────────────
 # GROQ CONFIG

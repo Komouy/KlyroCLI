@@ -118,7 +118,7 @@ To configure or change your AI engine, type:
 
 1. **Google Gemini** *(Recommended Default)*:
    - **Key Source:** [aistudio.google.com](https://aistudio.google.com) *(Free tier available)*
-   - **Models:** `gemini-3.6-flash` (Recommended), `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview`
+   - **Models:** `gemini-2.5-flash` (Recommended), `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3.1-pro-preview`
 2. **Groq LPU** *(Ultra Fast ~500 tok/s)*:
    - **Key Source:** [console.groq.com](https://console.groq.com) *(Free tier available)*
    - **Models:** `openai/gpt-oss-120b` (Flagship 120B), `groq/compound-mini`, `qwen/qwen3.8-27b`
@@ -144,8 +144,8 @@ To configure or change your AI engine, type:
 
 ### Dynamic Task Routing
 Klyro automatically balances performance and quota:
-- **Lightweight Tasks** *(chat, simple questions, small scripts)*: Uses fast, economical models (`gemini-3.5-flash-lite`, `groq/compound-mini`).
-- **Heavy Tasks** *(full-repo refactors, architectural analysis)*: Routes to large-context models (`gemini-3.6-flash`, `gpt-oss-120b`).
+- **Lightweight Tasks** *(chat, simple questions, small scripts)*: Uses fast, economical models (`gemini-2.5-flash-lite`, `groq/compound-mini`).
+- **Heavy Tasks** *(full-repo refactors, architectural analysis)*: Routes to large-context models (`gemini-2.5-pro`, `gemini-2.5-flash`, `gpt-oss-120b`).
 
 ### Universal Auto-Fallback
 If your active provider hits a daily rate limit or exhausted quota (`429 Too Many Requests` or `402 Payment Required`), Klyro automatically shifts the request to your backup provider and continues streaming without dropping your turn.

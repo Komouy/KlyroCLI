@@ -189,21 +189,21 @@ def test_smart_router_copilot_auto_routing_gemini(monkeypatch):
     prov, model, reason, tier = router.route("selamat pagi, apa kabar?", manual_override="gemini")
     assert prov == "gemini"
     assert tier == WorkloadTier.LIGHT
-    assert model in ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    assert model in ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     assert "Auto" in reason
 
-    # 2. Coding -> flagship coding flash (3.8-flash)
+    # 2. Coding -> flagship coding flash (2.5-flash)
     prov, model, reason, tier = router.route("buatkan controller FastAPI dan model Pydantic", manual_override="gemini")
     assert prov == "gemini"
     assert tier == WorkloadTier.CODE
-    assert model in ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    assert model in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]
     assert "Auto" in reason
 
-    # 3. Reasoning -> Argon / Pro model
+    # 3. Reasoning -> Pro model
     prov, model, reason, tier = router.route("pembuktian matematis dan kompleksitas big-o", manual_override="gemini")
     assert prov == "gemini"
     assert tier == WorkloadTier.REASONING
-    assert model in ["gemini-4-argon", "gemini-3.8-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-1.5-pro"]
+    assert model in ["gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-2.5-flash"]
     assert "Auto" in reason
 
 
@@ -253,13 +253,87 @@ def test_ai_assistant_auto_routing_state_sync(monkeypatch):
     assert ai.current_model != "auto"  # Must be an actual model ID
     assert "Auto" in ai.model_info
 
-    # In-provider routing for Gemini: code -> gemini-3.8-flash
+    # In-provider routing for Gemini: code -> gemini-2.5-flash
     prov, model, reason = ai._route_for_task("buat fungsi login dan refactor controller")
     assert prov == "gemini"
-    assert "gemini-3.8-flash" in model or "gemini-4-argon" in model or "3.6" in model
+    assert "gemini-2.5-flash" in model or "gemini-2.5-pro" in model or "2.5" in model
 
     # When lock_provider=False (auto all), provider locking is released
     ai.set_model("auto", lock_provider=False)
     assert ai._user_locked_provider is False
+
+
+def test_intra_provider_fallback_when_model_fails(monkeypatch):
+    """When a model is unavailable on the locked provider, it must fallback within the same provider first."""
+    from ai import AIAssistant, ModelUnavailable
+    import provider_manager
+    from unittest.mock import MagicMock
+
+    monkeypatch.setattr(provider_manager, "get_api_key", lambda p: "mock_key")
+    mock_dead_mgr = MagicMock()
+    mock_dead_mgr.is_dead.return_value = False
+    monkeypatch.setattr("core.model_discovery.get_dead_model_manager", lambda: mock_dead_mgr)
+
+    ai = AIAssistant()
+    ai.folder_aktif = "test_dir"
+    ai.switch_provider("gemini", force_model="auto")
+    assert ai.provider == "gemini"
+    assert ai._user_locked_provider is True
+
+    # Simulate first model failing with ModelUnavailable, second model succeeding
+    attempt = 0
+    def mock_tanya_stream(prompt):
+        nonlocal attempt
+        attempt += 1
+        if attempt == 1:
+            raise ModelUnavailable("gemini", "gemini-2.5-flash-lite", "Model 404")
+        yield "Response from backup Gemini model"
+
+    mock_gemini = MagicMock()
+    mock_gemini.tanya_stream = mock_tanya_stream
+    mock_gemini.init_chat = MagicMock(return_value=(True, "ok"))
+    ai.gemini = mock_gemini
+
+    chunks = list(ai.tanya_stream("Halo"))
+    response = "".join(chunks)
+
+    # Must stay on Gemini!
+    assert ai.provider == "gemini"
+    assert "Response from backup Gemini model" in response
+    assert len(ai.routing_trail) > 0
+    assert "tidak tersedia" in ai.routing_trail[0]["reason"]
+
+
+def test_user_locked_provider_does_not_cross_providers(monkeypatch):
+    """When all models in a locked provider fail, Klyro must not silently jump to another provider."""
+    from ai import AIAssistant, ModelUnavailable
+    import provider_manager
+    from unittest.mock import MagicMock
+
+    monkeypatch.setattr(provider_manager, "get_api_key", lambda p: "mock_key")
+    mock_dead_mgr = MagicMock()
+    monkeypatch.setattr("core.model_discovery.get_dead_model_manager", lambda: mock_dead_mgr)
+
+    ai = AIAssistant()
+    ai.folder_aktif = "test_dir"
+    ai.switch_provider("gemini", force_model="gemini-2.5-flash")
+    ai._user_locked_provider = True
+
+    # Exhaust all intra-provider candidates
+    monkeypatch.setattr(ai.smart_router, "get_intra_provider_candidates", lambda prov, tier, exclude_models: [])
+
+    mock_gemini = MagicMock()
+    def fail_stream(prompt):
+        raise ModelUnavailable("gemini", "gemini-2.5-flash", "All models 404")
+    mock_gemini.tanya_stream = fail_stream
+    ai.gemini = mock_gemini
+
+    chunks = list(ai.tanya_stream("Halo"))
+    response = "".join(chunks)
+
+    # Must not switch provider!
+    assert ai.provider == "gemini"
+    assert "terkunci" in response or "tidak tersedia" in response
+
 
 

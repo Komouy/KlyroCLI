@@ -781,7 +781,7 @@ def test_openrouter_empty_response_triggers_fallback():
 
     # Mock smart_router to return a fallback candidate
     assistant.smart_router = MagicMock()
-    assistant.smart_router.get_fallback_candidates.return_value = [("gemini", "gemini-3.6-flash", "Gemini")]
+    assistant.smart_router.get_fallback_candidates.return_value = [("gemini", "gemini-2.5-flash", "Gemini")]
     assistant.smart_router.temp_exclude_provider = MagicMock()
 
     # Mock active provider (Gemini) to return a greeting
@@ -800,13 +800,13 @@ def test_render_route_badge():
 
     assistant = AIAssistant()
     assistant.provider = "gemini"
-    assistant.current_model = "gemini-3.6-flash"
+    assistant.current_model = "gemini-2.5-flash"
     assistant.last_route_reason = "Code Task"
     assistant.routing_trail = []
 
     badge = render_route_badge(assistant)
     assert "Code Task" in badge
-    assert "gemini-3.6-flash" in badge
+    assert "gemini-2.5-flash" in badge
 
     # With reroute trail
     assistant.routing_trail = [{"from": "MiniMax M3", "reason": "offline", "to": "Nemotron 3"}]

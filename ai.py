@@ -873,7 +873,9 @@ class AIAssistant:
             self.auto_route = True
             self.target_model = "auto"
             cat_default = provider_manager.PROVIDER_CATALOG.get(new_provider, {}).get("default_model", "")
+            self.current_model = cat_default
             init_model = cat_default
+            save_model = "auto"
         else:
             self.auto_route = False
             self.target_model = force_model
@@ -886,8 +888,9 @@ class AIAssistant:
                     or provider_manager.PROVIDER_CATALOG.get(new_provider, {}).get("default_model", "")
                 )
             init_model = self.current_model
+            save_model = self.current_model
 
-        provider_manager.set_active_provider(new_provider, self.current_model, custom_url)
+        provider_manager.set_active_provider(new_provider, save_model, custom_url)
 
         if self.folder_aktif:
             self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=init_model)
@@ -913,6 +916,7 @@ class AIAssistant:
                 self._user_locked_provider = True
             provider_manager.set_active_provider(self.provider, "auto")
             cat_default = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("default_model", "")
+            self.current_model = cat_default
             if self.folder_aktif:
                 self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=cat_default)
             self._sync_info()
@@ -1309,9 +1313,36 @@ class AIAssistant:
                 pass
 
             tier, _ = classify_workload(pertanyaan, len(self.konteks or ""), self.jumlah_file or 0)
-            fallbacks = self.smart_router.get_fallback_candidates(tier, failed_provider="")
-            fallbacks = [f for f in fallbacks if not (f[0] == failed_prov and f[1] == failed_model)]
+            cat_failed = provider_manager.PROVIDER_CATALOG.get(failed_prov, {})
+            failed_prov_name = cat_failed.get("name", failed_prov.upper())
 
+            # 1. Intra-provider fallback: try another model on the SAME provider first
+            intra_candidates = self.smart_router.get_intra_provider_candidates(
+                failed_prov, tier, exclude_models=[failed_model]
+            )
+            if intra_candidates:
+                next_model = intra_candidates[0]
+                self.routing_trail.append({
+                    "from": f"{failed_prov_name} ({failed_model})",
+                    "reason": "tidak tersedia",
+                    "to": f"{failed_prov_name} ({next_model})"
+                })
+                self.current_model = next_model
+                self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=self.current_model)
+                self._sync_info()
+                self.last_route_reason = f"Intra-Provider Fallback → {failed_prov_name} ({next_model})"
+                if on_status:
+                    on_status(f"⚠️ {failed_model} tidak tersedia ➔ Switch ke model {next_model} pada {failed_prov_name}...")
+                yield from self._active.tanya_stream(pertanyaan)
+                return
+
+            # 2. If provider is explicitly locked by user, do not jump across providers
+            if self._user_locked_provider:
+                yield f"\n⚠️ Model '{failed_model}' tidak tersedia pada {failed_prov_name} dan semua model alternatif pada provider ini telah dicoba. Provider saat ini terkunci ke {failed_prov_name}. Gunakan /provider untuk mengganti provider atau /cmodel untuk memilih model lain.\n"
+                return
+
+            # 3. Cross-provider fallback only if provider is not locked
+            fallbacks = self.smart_router.get_fallback_candidates(tier, failed_provider=failed_prov)
             if fallbacks:
                 next_prov, next_model, next_label = fallbacks[0]
                 cat = provider_manager.PROVIDER_CATALOG.get(next_prov, {})
@@ -1329,19 +1360,52 @@ class AIAssistant:
                     on_status(f"⚠️ {failed_model} tidak tersedia ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
                 yield from self._active.tanya_stream(pertanyaan)
             else:
-                yield f"\n⚠️ Model '{failed_model}' is not available on {failed_prov.upper()} and no replacement model was found. Type /cmodel to choose another model."
+                yield f"\n⚠️ Model '{failed_model}' tidak tersedia pada {failed_prov.upper()} dan tidak ditemukan pengganti yang aktif. Ketik /cmodel untuk memilih model lain.\n"
 
         except QuotaExhausted as qe:
             failed_prov = getattr(qe, "provider", self.provider)
-            self.smart_router.temp_exclude_provider(failed_prov)
+            failed_model = getattr(qe, "model", self.current_model)
             tier, _ = classify_workload(pertanyaan, len(self.konteks or ""), self.jumlah_file or 0)
-            fallbacks = self.smart_router.get_fallback_candidates(tier, failed_prov)
+            cat_failed = provider_manager.PROVIDER_CATALOG.get(failed_prov, {})
+            failed_prov_name = cat_failed.get("name", failed_prov.upper())
 
+            # 1. Try another lighter model within the same provider first
+            intra_candidates = self.smart_router.get_intra_provider_candidates(
+                failed_prov, tier, exclude_models=[failed_model]
+            )
+            if intra_candidates:
+                next_model = intra_candidates[0]
+                self.routing_trail.append({
+                    "from": f"{failed_prov_name} ({failed_model})",
+                    "reason": "rate limit",
+                    "to": f"{failed_prov_name} ({next_model})"
+                })
+                self.current_model = next_model
+                self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=self.current_model)
+                self._sync_info()
+                self.last_route_reason = f"Intra-Provider Fallback → {failed_prov_name} ({next_model})"
+                if on_status:
+                    on_status(f"⌁ {failed_model} limit ➔ Coba model {next_model} pada {failed_prov_name}...")
+                try:
+                    yield from self._active.tanya_stream(pertanyaan)
+                    return
+                except (QuotaExhausted, ModelUnavailable):
+                    pass
+
+            self.smart_router.temp_exclude_provider(failed_prov)
+
+            # 2. If provider is explicitly locked by user, do not silently switch
+            if self._user_locked_provider:
+                yield f"\n⚠️ Quota atau rate limit habis pada {failed_prov_name}. Karena provider dikunci ke {failed_prov_name}, Klyro tidak beralih otomatis ke provider lain. Gunakan /provider untuk memilih provider lain.\n"
+                return
+
+            # 3. Cross-provider fallback only if provider is not locked
+            fallbacks = self.smart_router.get_fallback_candidates(tier, failed_prov)
             if fallbacks:
                 next_prov, next_model, next_label = fallbacks[0]
                 cat = provider_manager.PROVIDER_CATALOG.get(next_prov, {})
                 self.routing_trail.append({
-                    "from": failed_prov.upper(),
+                    "from": failed_prov_name,
                     "reason": "rate limit",
                     "to": f"{cat.get('name', next_prov)} ({next_model})"
                 })
@@ -1351,10 +1415,10 @@ class AIAssistant:
                 self._sync_info()
                 self.last_route_reason = f"Self-Healing Fallback → {cat.get('name', next_prov)}"
                 if on_status:
-                    on_status(f"⌁ {failed_prov.upper()} rate limit ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
+                    on_status(f"⌁ {failed_prov_name} rate limit ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
                 yield from self._active.tanya_stream(pertanyaan)
             else:
-                yield f"\n⚠️ Quota/error occurred for {failed_prov.upper()} and no other active provider is registered. Type /provider to choose another provider."
+                yield f"\n⚠️ Quota/error terjadi pada {failed_prov_name} dan tidak ada provider alternatif yang aktif. Ketik /provider untuk memilih provider lain.\n"
 
 
 

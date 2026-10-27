@@ -16,17 +16,13 @@ PROVIDER_CATALOG = {
         "name": "Google Gemini",
         "tag": "▲ Free • Best Free Tier & Long Context (1M)",
         "base_url": None,
-        "default_model": "gemini-3.6-flash",
+        "default_model": "gemini-2.5-flash",
         "models": [
-            {"id": "gemini-3.8-flash",         "desc": "★ Flagship 2026 • Engineered for Software Engineering & Agents"},
-            {"id": "gemini-4-argon",           "desc": "◈ Frontier Flagship • Deep Reasoning & 1M Output Decodes"},
-            {"id": "gemini-3.6-flash",         "desc": "▲ Stable Agentic • Fast, Smart & 1M Context"},
-            {"id": "gemini-3.5-flash-lite",    "desc": "⌁ Ultra Lightweight • High Speed & Low Latency"},
-            {"id": "gemini-3.1-flash-lite",    "desc": "⌁ Frontier-Class Lite • Cost-Efficient Performance"},
-            {"id": "gemini-3.1-pro-preview",   "desc": "◈ Complex Reasoning • Large Architectures & Logic"},
-            {"id": "gemini-2.5-flash",         "desc": "▲ Legacy Stable 2.5 • Fast Multimodal Reasoning"},
-            {"id": "gemini-2.5-pro",           "desc": "◈ Legacy Stable 2.5 • Complex Tasks & Deep Coding"},
-            {"id": "gemini-2.0-flash",         "desc": "⌁ Deprecated 2.0 • Replaced by 3.8 Flash"},
+            {"id": "gemini-2.5-flash",         "desc": "★ Recommended • Fast, Intelligent Multimodal 1M Context"},
+            {"id": "gemini-2.5-pro",           "desc": "◈ Frontier Reasoning • Deep Logic, Code & 2M Context"},
+            {"id": "gemini-2.5-flash-lite",    "desc": "⌁ Ultra Fast • High Speed & Low Latency"},
+            {"id": "gemini-3.1-pro-preview",   "desc": "▲ Preview • Advanced Logic & Complex Architectures"},
+            {"id": "gemini-2.0-flash",         "desc": "⌁ Stable 2.0 • Fast Multimodal 1M Context"},
             {"id": "gemini-1.5-flash",         "desc": "⌁ Stable 1.5 Flash • 1M Context Window"},
             {"id": "gemini-1.5-pro",           "desc": "◈ Stable 1.5 Pro • 2M Context Window"},
         ],
@@ -78,7 +74,7 @@ PROVIDER_CATALOG = {
         # the dynamic Klyro Model Registry (openrouter_registry.py).
         "models": [
             {"id": "z-ai/glm-5.2:free",                      "desc": "◈ GLM 5.2 Free • Complex Coding, Agent, 256K ctx [HIGH]"},
-            {"id": "minimax/minimax-m3:free",                 "desc": "≋ MiniMax M3 Free • 1M Context, Multimodal, Long Agent [HIGH]"},
+            {"id": "nvidia/nemotron-3.5-super-vl:free",       "desc": "≋ Nemotron 3.5 Super VL Free • Reasoning & Long Context [HIGH]"},
             {"id": "nvidia/nemotron-3-super-120b-a12b:free",  "desc": "▲ Nemotron 3 Super Free • 120B, Reasoning, Multi-agent [HEAVY]"},
             {"id": "openrouter/auto",                         "desc": "↻ OpenRouter Auto • Best available free model (simple fallback)"},
         ],
@@ -217,7 +213,7 @@ def load_config() -> dict:
     default_config = {
         "active_provider": "gemini",
         "active_models": {
-            "gemini":     "gemini-3.6-flash",
+            "gemini":     "gemini-2.5-flash",
             "claude":     "claude-3-7-sonnet-20250219",
             "deepseek":   "deepseek-chat",
             "groq":       "openai/gpt-oss-120b",
