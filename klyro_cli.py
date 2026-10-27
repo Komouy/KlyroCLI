@@ -65,7 +65,7 @@ import security
 from theme import (
     RESET, BOLD,
     FROST_CYAN, FROST_ICE, FROST_MINT, FROST_INDIGO,
-    FROST_CORAL, FROST_AMBER, FROST_WHITE, FROST_DARK, FROST_GRAY,
+    FROST_CORAL, FROST_AMBER, FROST_WHITE, FROST_DARK, FROST_GRAY, FROST_GHOST,
     get_git_branch, gradient_text, clip_line,
 )
 import shutil
@@ -86,7 +86,7 @@ def render_route_badge(ai_assistant) -> str:
         route_short = route_info
 
     model_name = ai_assistant.current_model.split("/")[-1] if "/" in ai_assistant.current_model else ai_assistant.current_model
-    prov_name = provider_manager.PROVIDER_CATALOG.get(ai_assistant.provider, {}).get("name", ai_assistant.provider.upper())
+    prov_name = provider_manager.PROVIDER_CATALOG.get(ai_assistant.provider, {}).get("name", ai_assistant.provider.title())
 
     trail = getattr(ai_assistant, "routing_trail", [])
     if trail:
@@ -95,16 +95,16 @@ def render_route_badge(ai_assistant) -> str:
             for h in trail
         )
         return (
-            f"  {FROST_CYAN}• {route_short}{RESET} {FROST_DARK}•{RESET} {FROST_WHITE}{BOLD}{prov_name}{RESET} {FROST_ICE}({model_name}){RESET}\n"
-            f"    {FROST_DARK}-> rerouted: {FROST_GRAY}{hops}{RESET}\n\n"
+            f"  {FROST_DARK}[{RESET}{FROST_CYAN}{prov_name}:{model_name}{RESET} {FROST_DARK}· {route_short}]{RESET}\n"
+            f"  {FROST_DARK}↳ rerouted: {FROST_GRAY}{hops}{RESET}\n"
         )
-    return f"  {FROST_CYAN}• {route_short}{RESET} {FROST_DARK}•{RESET} {FROST_WHITE}{prov_name}{RESET} {FROST_ICE}({model_name}){RESET}\n\n"
+    return f"  {FROST_DARK}[{RESET}{FROST_CYAN}{prov_name}:{model_name}{RESET} {FROST_DARK}· {route_short}]{RESET}\n"
 
 
 def render_top_bar(folder_aktif: str, ai_assistant) -> str:
     cwd_display = os.path.basename(os.path.abspath(folder_aktif)) or folder_aktif.replace("\\", "/")
     git_branch = get_git_branch(folder_aktif)
-    branch_part = f" {FROST_DARK}──{RESET} {FROST_MINT}git:{git_branch}{RESET}" if git_branch else ""
+    branch_part = f" {FROST_DARK}·{RESET} {FROST_GRAY}git:{git_branch}{RESET}" if git_branch else ""
 
     prov_name = provider_manager.PROVIDER_CATALOG.get(ai_assistant.provider, {}).get("name", ai_assistant.provider.title())
     model_name = ai_assistant.current_model.split("/")[-1] if "/" in ai_assistant.current_model else ai_assistant.current_model
@@ -112,12 +112,12 @@ def render_top_bar(folder_aktif: str, ai_assistant) -> str:
     router_tag = f" {FROST_ICE}[Auto]{RESET}" if is_auto else ""
     has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
     key_dot = f"{FROST_MINT}●{RESET}" if has_key else f"{FROST_AMBER}○{RESET}"
-    model_display = f"Auto • {model_name}" if (is_auto and getattr(ai_assistant, "target_model", "") in ("auto", "copilot", "default")) else model_name
+    model_display = f"Auto · {model_name}" if (is_auto and getattr(ai_assistant, "target_model", "") in ("auto", "copilot", "default")) else model_name
 
     return (
-        f"  {FROST_CYAN}❄{RESET} {FROST_DARK}─{RESET} {FROST_WHITE}{BOLD}{cwd_display}{RESET}"
+        f"  {FROST_GHOST}{cwd_display}{RESET}"
         f"{branch_part}"
-        f" {FROST_DARK}──{RESET} {key_dot} {FROST_CYAN}{prov_name}{router_tag}{RESET} {FROST_DARK}({model_display}){RESET}"
+        f" {FROST_DARK}·{RESET} {key_dot} {FROST_GRAY}{prov_name}{router_tag}{RESET} {FROST_DARK}({model_display}){RESET}"
     )
 
 
@@ -131,21 +131,15 @@ def render_micro_metrics(query_duration: float, full_response: str, ai_assistant
 
     tps_str = f"{speed_tps:.1f} tok/s" if speed_tps > 0 else "<0.1 tok/s"
     time_str = f"{query_duration:.1f}s"
-    tok_str = f"~{est_tokens:,} tok"
-
-    # Frost ribbon — 8-cell throughput meter (capped at 80 tok/s)
-    filled = int(round(min(max(speed_tps, 0.0), 80.0) / 80.0 * 8))
-    if filled > 0:
-        ribbon = gradient_text("▰" * filled + "▱" * (8 - filled), (56, 189, 248), (129, 140, 248))
-    else:
-        ribbon = f"{FROST_DARK}▱▱▱▱▱▱▱▱{RESET}"
-    tps_color = FROST_MINT if speed_tps >= 40 else FROST_CYAN
+    tok_str = f"{est_tokens:,} tok"
 
     print(
-        f"  {ribbon} {FROST_DARK}•{RESET} {tps_color}{tps_str}{RESET} "
-        f"{FROST_DARK}•{RESET} {FROST_ICE}{time_str}{RESET} "
-        f"{FROST_DARK}•{RESET} {FROST_WHITE}{tok_str}{RESET} "
-        f"{FROST_DARK}•{RESET} {FROST_GRAY}{prov_name} ({model_name}){RESET}\n"
+        f"  {FROST_DARK}[{RESET}"
+        f"{FROST_GRAY}{tok_str}{RESET} {FROST_DARK}·{RESET} "
+        f"{FROST_GRAY}{tps_str}{RESET} {FROST_DARK}·{RESET} "
+        f"{FROST_GRAY}{time_str}{RESET} {FROST_DARK}·{RESET} "
+        f"{FROST_GRAY}{prov_name}:{model_name}{RESET}"
+        f"{FROST_DARK}]{RESET}\n"
     )
 
 
@@ -208,16 +202,16 @@ def main():
 
             if _use_prompt_session:
                 try:
-                    ansi_prompt = ANSI("  \033[38;2;100;116;139m╰─\033[0m \033[38;2;56;189;248m\033[1m❯\033[0m ")
+                    ansi_prompt = ANSI("  \033[38;2;56;189;248m❯\033[0m ")
                     user_input = prompt_session.prompt(ansi_prompt).strip()
                 except KeyboardInterrupt:
                     print(f"\n  {FROST_DARK}(Interrupted. Type /exit to quit){RESET}\n")
                     continue
                 except EOFError:
-                    print("\n  " + gradient_text("✦ Until next frost — goodbye ✦", (56, 189, 248), (129, 140, 248)) + "\n")
+                    print(f"\n  {FROST_GRAY}Goodbye.{RESET}\n")
                     break
             else:
-                user_input = input("  \033[38;2;100;116;139m╰─\033[0m \033[38;2;56;189;248m\033[1m❯\033[0m ").strip()
+                user_input = input("  \033[38;2;56;189;248m❯\033[0m ").strip()
 
             import validations
             if validations.check_empty_input(user_input):
@@ -503,7 +497,7 @@ def main():
         except KeyboardInterrupt:
             print(f"\n  {FROST_DARK}(Interrupted. Type /exit to quit){RESET}\n")
         except EOFError:
-            print("\n  " + gradient_text("✦ Until next frost — goodbye ✦", (56, 189, 248), (129, 140, 248)) + "\n")
+            print(f"\n  {FROST_GRAY}Goodbye.{RESET}\n")
             break
 
 

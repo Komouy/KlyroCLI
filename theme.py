@@ -342,9 +342,10 @@ class UI:
 
     # --- MICRO-RHYTHM ---
     @staticmethod
-    def _beat(delay: float = 0.03):
-        """Tiny pause that gives multi-line outputs a soft entrance rhythm."""
-        time.sleep(delay)
+    def _beat(delay: float = 0.0):
+        """Instant rhythm for snappy output."""
+        if delay > 0:
+            time.sleep(delay)
 
     # --- SEMANTIC FILE OPERATIONS ---
     @staticmethod

@@ -117,5 +117,51 @@ def test_ui_components():
 
     print("✅ All UI Abstraction Layer unit tests passed!")
 
+
+def test_minimalist_theme():
+    """Verify minimalist UI components: clean top bar, route badge, micro-metrics, and help."""
+    from klyro_cli import render_top_bar, render_route_badge, render_micro_metrics
+    from commands.command_handler import handle_slash_command
+
+    class MockAI:
+        provider = "groq"
+        current_model = "llama-3.3-70b-versatile"
+        auto_route = False
+        _user_locked_provider = True
+        last_route_reason = "[Fast Code Tier] groq"
+        routing_trail = []
+
+    # 1. Top bar: minimalist dot separators, no bulky ── dashes
+    top_bar = render_top_bar(".", MockAI())
+    assert "·" in top_bar
+    assert "──" not in top_bar
+    assert "Groq" in top_bar
+
+    # 2. Route badge: clean brackets [Groq:model · reason]
+    badge = render_route_badge(MockAI())
+    assert "[" in badge and "]" in badge
+    assert "Groq LPU:llama-3.3-70b-versatile" in badge
+
+    # 3. Micro metrics: muted text, no old gradient ribbon ▰▰▰▰
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        render_micro_metrics(1.2, "sample response" * 50, MockAI())
+    metrics = buf.getvalue()
+    assert "▰" not in metrics
+    assert "tok/s" in metrics
+    assert "Groq LPU:llama-3.3-70b-versatile" in metrics
+
+    # 4. Help: clean 2-column layout, no unicode box borders ╭─
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        handle_slash_command("/help", "", ".", MockAI())
+    help_out = buf.getvalue()
+    assert "Klyro Commands" in help_out
+    assert "AI & Engine" in help_out
+    assert "╭─" not in help_out
+    assert "╰─" not in help_out
+
+
 if __name__ == "__main__":
     test_ui_components()
+    test_minimalist_theme()

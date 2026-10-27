@@ -316,12 +316,12 @@ def print_banner(folder_path, ai_assistant):
 
 
 def play_startup_animation(folder_path, ai_assistant):
-    """Lively startup intro: gradient logo + ice-light shimmer sweep and micro-step ticker."""
+    """Instant, clean minimalist startup greeting without heavy animation delays."""
     files = getattr(ai_assistant, "daftar_file", None)
     if files is None:
         files = file_manager.list_daftar_file(folder_path)
 
-    # Full terminal clear: wipes both viewport and scrollback history
+    # Clean screen
     if sys.platform == "win32":
         try:
             os.system("cls")
@@ -330,81 +330,23 @@ def play_startup_animation(folder_path, ai_assistant):
     sys.stdout.write("\033[3J\033[H\033[2J")
     sys.stdout.flush()
 
-    logo_lines = [
-        "██╗  ██╗██╗  ██╗   ██╗██████╗  ██████╗ ",
-        "██║ ██╔╝██║  ╚██╗ ██╔╝██╔══██╗██╔═══██╗",
-        "█████╔╝ ██║   ╚████╔╝ ██████╔╝██║   ██║",
-        "██╔═██╗ ██║    ╚██╔╝  ██╔══██╗██║   ██║",
-        "██║  ██╗███████╗██║   ██║  ██║╚██████╔╝",
-        "╚═╝  ╚═╝╚══════╝╚═╝   ╚═╝  ╚═╝ ╚═════╝ ",
-    ]
+    folder_name = os.path.basename(os.path.abspath(folder_path)) or folder_path
+    git_branch = get_git_branch(folder_path)
+    branch_part = f" {FROST_DARK}·{RESET} {FROST_MINT}git:{git_branch}{RESET}" if git_branch else ""
 
-    palette_shifts = [
-        ((56, 189, 248), (129, 140, 248)),
-        ((34, 211, 238), (168, 85, 247)),
-        ((56, 189, 248), (52, 211, 153)),
-    ]
+    provider_name = provider_manager.PROVIDER_CATALOG.get(
+        ai_assistant.provider, {}
+    ).get("name", ai_assistant.provider.title())
+    model_name = ai_assistant.current_model or (
+        MODEL_KECIL if ai_assistant.provider == "gemini" else GROQ_MODEL_CEPAT
+    )
+    model_short = model_name.split("/")[-1] if "/" in model_name else model_name
 
-    start_c, end_c = palette_shifts[0]
-    term_width = shutil.get_terminal_size(fallback=(80, 24)).columns
-    fast_mode = os.environ.get("KLYRO_FAST") == "1"
-    print()
-    if term_width >= 45:
-        for line in logo_lines:
-            print("  " + gradient_text(line, start_c, end_c))
-        sys.stdout.flush()
-
-        # ── Nordic shimmer sweep: an ice-light band glides across the logo ──
-        if not fast_mode:
-            for sweep in range(3):
-                center = -0.35 + (1.7 * sweep / 2)
-                sys.stdout.write("\033[6F\r")
-                for line in logo_lines:
-                    sys.stdout.write(
-                        "  " + shimmer_gradient(
-                            line, start_c, end_c,
-                            center=center, highlight_rgb=(224, 247, 255),
-                        ) + "\n"
-                    )
-                sys.stdout.flush()
-                time.sleep(0.015)
-
-        tagline = f"  {FROST_DARK}Autonomous Agentic CLI Coding Assistant • v2.5{RESET}"
-    else:
-        # Compact title for narrow mobile/Termux screens
-        print("  " + gradient_text("⌁ K L Y R O   C L I ⌁", start_c, end_c))
-        tagline = f"  {FROST_DARK}Autonomous Agentic CLI • v2.5{RESET}"
-    print(tagline)
-    print()
-
-    # Step 1: Runtime
-    if not fast_mode:
-        for g in ["⠋", "⠙"]:
-            sys.stdout.write(clip_line(f"\r  {FROST_CYAN}{g}{RESET} {FROST_GRAY}Initializing Nordic runtime environment...{RESET}\033[K", term_width - 1))
-            sys.stdout.flush()
-            time.sleep(0.01)
-    sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Nordic runtime active{RESET}\033[K\n", term_width - 1))
-
-    # Step 2: Indexing
-    if not fast_mode:
-        for g in ["⠋", "⠙"]:
-            sys.stdout.write(clip_line(f"\r  {FROST_AQUA}{g}{RESET} {FROST_GRAY}Indexing workspace files & project context...{RESET}\033[K", term_width - 1))
-            sys.stdout.flush()
-            time.sleep(0.01)
-    sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Indexed {BOLD}{len(files)}{RESET} {FROST_GRAY}files in workspace{RESET}\033[K\n", term_width - 1))
-
-    # Step 3: AI Provider Link
-    provider_name = ai_assistant.provider.upper()
-    model_name = ai_assistant.current_model or (MODEL_KECIL if ai_assistant.provider == "gemini" else GROQ_MODEL_CEPAT)
     has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
-    if not fast_mode:
-        for g in ["⠋", "⠙"]:
-            sys.stdout.write(clip_line(f"\r  {FROST_INDIGO}{g}{RESET} {FROST_GRAY}Checking AI neural engine ({provider_name})...{RESET}\033[K", term_width - 1))
-            sys.stdout.flush()
-            time.sleep(0.01)
-    if has_key:
-        sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Neural engine ready:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_DARK}({model_name}){RESET}\033[K\n", term_width - 1))
-    else:
-        sys.stdout.write(clip_line(f"\r  {FROST_AMBER}○{RESET} {FROST_GRAY}Neural engine:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_AMBER}(Key belum diset — ketik /provider){RESET}\033[K\n", term_width - 1))
+    key_dot = f"{FROST_MINT}●{RESET}" if has_key else f"{FROST_AMBER}○ key missing{RESET}"
 
-    print_banner(folder_path, ai_assistant)
+    print()
+    print(f"  {FROST_CYAN}{BOLD}klyro{RESET} {FROST_DARK}v2.5{RESET} {FROST_DARK}·{RESET} {FROST_WHITE}{folder_name}{RESET}{branch_part} {FROST_DARK}·{RESET} {key_dot} {FROST_ICE}{provider_name}{RESET} {FROST_DARK}({model_short}){RESET}")
+    print(f"  {FROST_GRAY}Type prompt, {FROST_CYAN}@file{FROST_GRAY} to attach, {FROST_CYAN}/help{FROST_GRAY} for commands.{RESET}\n")
+    sys.stdout.flush()
+
