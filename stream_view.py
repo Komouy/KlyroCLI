@@ -1,10 +1,11 @@
 import time
+import shutil
+import re
 from file_manager import _parse_fence_line, _filename_from_fence_info
 from theme import (
     FROST_WHITE, FROST_CYAN, FROST_DARK, FROST_ICE, FROST_GHOST, FROST_MINT,
-    RESET, BOLD, shimmer_text, clip_line,
+    RESET, BOLD, shimmer_text, clip_line, display_width,
 )
-import shutil
 
 
 def _clip(s: str) -> str:
@@ -277,20 +278,43 @@ class CodeBlockBuffer:
         return header + code_body + footer
 
 
+_EMOJI_RE = re.compile(
+    r"[\U00010000-\U0010ffff]|\uFE0E|\uFE0F|\u200D|[\u2600-\u26FF]"
+)
+
+
 class StreamIndenter:
     """
     Ensures every line of streaming AI output has a clean left margin (2 spaces)
     so text doesn't stick to the terminal/CMD edge, while avoiding double-indentation
     when lines already have leading spaces or ANSI control codes.
+    Also provides word-wrapping at terminal margin so prose lines don't wrap to column 0,
+    and normalizes inconsistent tabs.
     """
-    def __init__(self, indent: str = "  "):
+    def __init__(self, indent: str = "  ", max_cols: int = None):
         self.indent = indent
+        self.max_cols_override = max_cols
         self.at_line_start = True
         self.leading_spaces = 0
+        self.col = 0
+        self.word_buf = ""
+        self.line_prefix_buf = ""
+        self.continuation_indent = indent
+        self.in_structural = False
+        self.prefix_determined = False
 
     def feed(self, text: str) -> str:
         if not text:
             return ""
+
+        # Normalize tabs to 2 spaces for consistent indentation
+        text = text.replace("\t", "  ")
+
+        # Sanitize any stray emoji from LLM output so [?] doesn't render on Windows terminal
+        text = _EMOJI_RE.sub("", text)
+        text = re.sub(r"(?<=\S)  +", " ", text)
+
+        term_w = self.max_cols_override or max(30, shutil.get_terminal_size(fallback=(80, 24)).columns - 2)
         out = []
         i = 0
         n = len(text)
@@ -298,19 +322,31 @@ class StreamIndenter:
             ch = text[i]
 
             if ch == "\n":
+                if self.word_buf:
+                    out.append(self.word_buf)
+                    self.word_buf = ""
                 out.append(ch)
+                self.col = 0
                 self.at_line_start = True
                 self.leading_spaces = 0
+                self.continuation_indent = self.indent
+                self.in_structural = False
+                self.prefix_determined = False
+                self.line_prefix_buf = ""
                 i += 1
                 continue
             elif ch == "\r":
+                if self.word_buf:
+                    out.append(self.word_buf)
+                    self.word_buf = ""
                 out.append(ch)
+                self.col = 0
                 self.at_line_start = True
                 self.leading_spaces = 0
                 i += 1
                 continue
 
-            # Pass through ANSI escape sequences without consuming indentation state
+            # Pass through ANSI escape sequences without consuming column width or indentation state
             if ch == "\033" and i + 1 < n and text[i + 1] == "[":
                 end = i + 2
                 while end < n and not text[end].isalpha():
@@ -325,6 +361,7 @@ class StreamIndenter:
                 if ch == " ":
                     self.leading_spaces += 1
                     out.append(ch)
+                    self.col += 1
                     if self.leading_spaces >= len(self.indent):
                         self.at_line_start = False
                     i += 1
@@ -333,27 +370,68 @@ class StreamIndenter:
                     needed = max(0, len(self.indent) - self.leading_spaces)
                     if needed > 0:
                         out.append(" " * needed)
-                    out.append(ch)
+                        self.col += needed
                     self.at_line_start = False
                     self.leading_spaces = 0
-                    i += 1
-                    continue
-            else:
+                    if ch in ("│", "╭", "╰", "━", "─", "├", "┤"):
+                        self.in_structural = True
+
+            if self.in_structural:
                 out.append(ch)
+                self.col += 1
                 i += 1
+                continue
+
+            if not self.prefix_determined:
+                self.line_prefix_buf += ch
+                if ch == " ":
+                    p = self.line_prefix_buf
+                    m = re.match(r"^([-*+]|\d+\.)\s", p)
+                    if m:
+                        self.continuation_indent = self.indent + (" " * len(m.group(0)))
+                    self.prefix_determined = True
+
+            # Word wrapping for prose
+            if ch == " ":
+                w_len = display_width(self.word_buf)
+                if self.col + w_len > term_w and self.col > len(self.indent):
+                    out.append("\n" + self.continuation_indent + self.word_buf + " ")
+                    self.col = len(self.continuation_indent) + w_len + 1
+                else:
+                    out.append(self.word_buf + " ")
+                    self.col += w_len + 1
+                self.word_buf = ""
+            else:
+                self.word_buf += ch
+
+            i += 1
 
         return "".join(out)
+
+    def flush(self) -> str:
+        if self.word_buf:
+            res = self.word_buf
+            self.word_buf = ""
+            return res
+        return ""
 
     def reset(self):
         self.at_line_start = True
         self.leading_spaces = 0
+        self.col = 0
+        self.word_buf = ""
+        self.line_prefix_buf = ""
+        self.continuation_indent = self.indent
+        self.in_structural = False
+        self.prefix_determined = False
 
 
 class ThinkingStreamHandler:
     """
     Detects <think>...</think> (or <thought>...</thought>) blocks during streaming.
     Renders thought reasoning inside an elegant bordered card with dim muted styling,
-    and displays execution duration upon closing.
+    maintains unbroken vertical borders even on blank lines, wraps thought lines
+    cleanly inside the box, and displays execution duration upon closing.
     """
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
@@ -361,6 +439,8 @@ class ThinkingStreamHandler:
         self.buffer = ""
         self.start_time = 0.0
         self.line_started = False
+        self.thought_word_buf = ""
+        self.thought_col = 0
 
     def feed(self, chunk: str) -> str:
         if not self.enabled or not chunk:
@@ -384,10 +464,15 @@ class ThinkingStreamHandler:
                     self.in_thinking = True
                     self.start_time = time.time()
                     self.line_started = False
+                    self.thought_word_buf = ""
+                    self.thought_col = 0
                     self.buffer = self.buffer[idx + tag_len:]
+                    term_w = shutil.get_terminal_size(fallback=(80, 24)).columns
+                    card_w = max(24, min(72, term_w - 6))
+                    bar_w = max(4, card_w - 20)
                     header = (
-                        f"\n  {FROST_DARK}╭─{RESET} {FROST_ICE}◈ Thinking Process{RESET} "
-                        f"{FROST_DARK}{'─' * 40}{RESET}\n"
+                        f"\n  {FROST_DARK}╭─{RESET} {FROST_ICE}Thinking Process{RESET} "
+                        f"{FROST_DARK}{'─' * bar_w}{RESET}\n"
                     )
                     out.append(header)
                 else:
@@ -416,14 +501,7 @@ class ThinkingStreamHandler:
                     self.buffer = self.buffer[idx + close_tag_len:]
                     if thought_segment:
                         out.append(self._format_thought(thought_segment))
-                    self.in_thinking = False
-                    dur = max(0.1, time.time() - self.start_time)
-                    footer = (
-                        f"\n  {FROST_DARK}╰{'─' * 36} "
-                        f"{FROST_MINT}✓ Thought for {dur:.1f}s{RESET} {FROST_DARK}─╯{RESET}\n\n"
-                    )
-                    out.append(footer)
-                    self.line_started = False
+                    out.append(self._close_thought_card())
                 else:
                     close_prefixes = ("<", "</", "</t", "</th", "</thi", "</thin", "</think", "</tho", "</thou")
                     ends_with_prefix = any(self.buffer.endswith(p) for p in close_prefixes)
@@ -441,46 +519,99 @@ class ThinkingStreamHandler:
         return "".join(out)
 
     def _format_thought(self, text: str) -> str:
-        """Render thought lines with a left border and dim muted color."""
+        """Render thought lines with a left border and dim muted color, wrapping lines at margin."""
         if not text:
             return ""
-        parts = []
-        lines = text.split("\n")
-        for i, line in enumerate(lines):
-            if i > 0:
-                parts.append("\n")
-                self.line_started = False
-            if line:
+        term_w = shutil.get_terminal_size(fallback=(80, 24)).columns
+        card_w = max(24, min(72, term_w - 6))
+        max_thought_w = max(20, card_w - 6)
+
+        out = []
+        for ch in text:
+            if ch == "\n":
+                if self.thought_word_buf:
+                    out.append(self.thought_word_buf)
+                    self.thought_word_buf = ""
                 if not self.line_started:
-                    parts.append(f"  {FROST_DARK}│{RESET} {FROST_GHOST}")
-                    self.line_started = True
-                parts.append(line)
-        return "".join(parts)
+                    out.append(f"  {FROST_DARK}│{RESET}\n")
+                else:
+                    out.append(f"{RESET}\n")
+                self.thought_col = 0
+                self.line_started = False
+                continue
+
+            if not self.line_started:
+                if ch in (" ", "\t"):
+                    continue
+                out.append(f"  {FROST_DARK}│{RESET} {FROST_GHOST}")
+                self.thought_col = 4
+                self.line_started = True
+
+            if ch == " ":
+                w_len = display_width(self.thought_word_buf)
+                if self.thought_col + w_len > max_thought_w:
+                    out.append(f"{RESET}\n  {FROST_DARK}│{RESET} {FROST_GHOST}{self.thought_word_buf} ")
+                    self.thought_col = 4 + w_len + 1
+                else:
+                    out.append(self.thought_word_buf + " ")
+                    self.thought_col += w_len + 1
+                self.thought_word_buf = ""
+            elif ch == "\t":
+                w_len = display_width(self.thought_word_buf)
+                if self.thought_col + w_len > max_thought_w:
+                    out.append(f"{RESET}\n  {FROST_DARK}│{RESET} {FROST_GHOST}{self.thought_word_buf} ")
+                    self.thought_col = 4 + w_len + 1
+                else:
+                    out.append(self.thought_word_buf + " ")
+                    self.thought_col += w_len + 1
+                self.thought_word_buf = ""
+            else:
+                self.thought_word_buf += ch
+        return "".join(out)
+
+    def _close_thought_card(self) -> str:
+        out = []
+        if self.thought_word_buf:
+            out.append(self.thought_word_buf)
+            self.thought_word_buf = ""
+        if self.line_started:
+            out.append(f"{RESET}\n")
+            self.line_started = False
+        self.in_thinking = False
+        dur = max(0.1, time.time() - self.start_time)
+        term_w = shutil.get_terminal_size(fallback=(80, 24)).columns
+        card_w = max(24, min(72, term_w - 6))
+        bar_w = max(4, card_w - 24)
+        out.append(
+            f"  {FROST_DARK}╰{'─' * bar_w} "
+            f"{FROST_MINT}Thought for {dur:.1f}s{RESET} {FROST_DARK}─╯{RESET}\n\n"
+        )
+        return "".join(out)
 
     def flush(self) -> str:
         out = []
         if self.buffer:
             if self.in_thinking:
                 out.append(self._format_thought(self.buffer))
-                dur = max(0.1, time.time() - self.start_time)
-                out.append(f"\n  {FROST_DARK}╰{'─' * 36} {FROST_MINT}✓ Thought for {dur:.1f}s{RESET} {FROST_DARK}─╯{RESET}\n\n")
+                out.append(self._close_thought_card())
             else:
                 out.append(self.buffer)
             self.buffer = ""
         elif self.in_thinking:
-            dur = max(0.1, time.time() - self.start_time)
-            out.append(f"\n  {FROST_DARK}╰{'─' * 36} {FROST_MINT}✓ Thought for {dur:.1f}s{RESET} {FROST_DARK}─╯{RESET}\n\n")
-            self.in_thinking = False
+            out.append(self._close_thought_card())
         return "".join(out)
 
     def cancel(self) -> str:
         self.buffer = ""
+        self.thought_word_buf = ""
         if self.in_thinking:
             self.in_thinking = False
+            self.line_started = False
             return f"\n  {FROST_DARK}╰{'─' * 46} (interrupted) ─╯{RESET}\n\n"
         return ""
 
 
+
 class FenceProsePainter:
     """Color prose (outside fences) with FROST_WHITE; leave fence bodies raw."""
 
@@ -543,64 +674,3 @@ class FenceProsePainter:
         return self._paint_body(line)
 
 
-class FenceProsePainter:
-
-    """Color prose (outside fences) with FROST_WHITE; leave fence bodies raw."""
-
-    def __init__(self):
-        self.in_fence = False
-        self.tick_len = 0
-        self.tick_char = "`"
-        self.hold = ""
-
-    def feed(self, chunk: str) -> str:
-        if not chunk:
-            return ""
-        self.hold += chunk
-        parts = []
-        while True:
-            nl = self.hold.find("\n")
-            if nl == -1:
-                break
-            line = self.hold[: nl + 1]
-            self.hold = self.hold[nl + 1 :]
-            parts.append(self._handle_line(line))
-        if self.hold and not self._maybe_incomplete_opener(self.hold):
-            parts.append(self._paint_body(self.hold))
-            self.hold = ""
-        return "".join(parts)
-
-    def flush(self) -> str:
-        if not self.hold:
-            return ""
-        out = self._handle_line(self.hold)
-        self.hold = ""
-        return out
-
-    def _maybe_incomplete_opener(self, s: str) -> bool:
-        if self.in_fence:
-            return False
-        stripped = s.lstrip(" \t")
-        return stripped.startswith("`") or stripped.startswith("~")
-
-    def _paint_body(self, text: str) -> str:
-        if not text:
-            return ""
-        if self.in_fence:
-            return text
-        return f"{FROST_WHITE}{text}{RESET}"
-
-    def _handle_line(self, line: str) -> str:
-        parsed = _parse_fence_line(line)
-        if parsed:
-            tlen, tchar, info = parsed
-            if not self.in_fence:
-                self.in_fence = True
-                self.tick_len = tlen
-                self.tick_char = tchar
-                return line
-            if tchar == self.tick_char and tlen >= self.tick_len and not info:
-                self.in_fence = False
-                return line
-            return line
-        return self._paint_body(line)

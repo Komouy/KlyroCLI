@@ -373,6 +373,13 @@ def main():
                                     stream_color_on = True
                                 sys.stdout.write(indented)
                                 sys.stdout.flush()
+                    indented_last = indenter.flush()
+                    if indented_last:
+                        if not stream_color_on:
+                            sys.stdout.write(FROST_WHITE)
+                            stream_color_on = True
+                        sys.stdout.write(indented_last)
+                        sys.stdout.flush()
                     if stream_color_on:
                         sys.stdout.write(RESET)
                         sys.stdout.flush()

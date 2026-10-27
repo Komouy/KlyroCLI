@@ -266,7 +266,7 @@ class SmartRouter:
                 if not chosen_model:
                     chosen_model = active_cat.get("default_model", "")
                 prov_name = active_cat.get("name", manual_override.upper())
-                reason = f"[Auto • {prov_name} ({tier.value})] {tier_reason}"
+                reason = f"[Auto • Manual Override: {prov_name} ({tier.value})] {tier_reason}"
                 return manual_override, chosen_model, reason, tier
 
             return manual_override, current_model_cfg, f"Manual Override ({active_cat.get('name', manual_override)})", tier

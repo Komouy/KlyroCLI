@@ -141,3 +141,33 @@ def test_slash_think_commands(capsys):
     assert ai.force_thinking is False
     out_auto = capsys.readouterr().out
     assert "Thinking Mode: AUTO" in out_auto
+
+
+def test_thinking_handler_empty_lines_preserve_border():
+    """Verify that blank lines inside <think> maintain the vertical border line."""
+    handler = ThinkingStreamHandler()
+    raw = "<think>Langkah 1\n\nLangkah 2</think>"
+    rendered = handler.feed(raw) + handler.flush()
+    lines = [l for l in rendered.splitlines() if "│" in l]
+    assert len(lines) >= 3  # Langkah 1, empty line with │, Langkah 2
+
+
+def test_thinking_handler_strips_leading_whitespace():
+    """Verify that irregular leading spaces from LLM thoughts are cleanly stripped."""
+    handler = ThinkingStreamHandler()
+    raw = "<think>  Just greet and ask what they need.</think>"
+    rendered = handler.feed(raw) + handler.flush()
+    # Should not have multiple spaces right after the border prefix
+    assert "│   Just" not in rendered
+    assert "Just greet" in rendered
+
+
+def test_thinking_handler_no_unsupported_glyphs():
+    """Verify that fragile glyphs like ◈ and ✓ are not emitted."""
+    handler = ThinkingStreamHandler()
+    raw = "<think>Analisis mendalam.</think>"
+    rendered = handler.feed(raw) + handler.flush()
+    assert "◈" not in rendered
+    assert "✓" not in rendered
+    assert "Thinking Process" in rendered
+    assert "Thought for" in rendered

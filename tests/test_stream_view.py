@@ -1,6 +1,6 @@
 """Unit tests for CodeBlockBuffer and stream_view utilities."""
 import pytest
-from stream_view import CodeBlockBuffer, CommentStripper
+from stream_view import CodeBlockBuffer, CommentStripper, StreamIndenter
 
 
 def test_code_block_buffer_prose_passthrough():
@@ -177,3 +177,67 @@ def test_code_block_buffer_live_counter():
     assert "app.py" in close_out
     assert "import os" in close_out
     assert "print('hi')" in close_out
+
+
+def test_stream_indenter_margin():
+    """Verify that every line starts with clean 2 spaces margin."""
+    ind = StreamIndenter(indent="  ")
+    out = ind.feed("Baris pertama\nBaris kedua\n") + ind.flush()
+    lines = out.splitlines()
+    assert lines[0].startswith("  Baris pertama")
+    assert lines[1].startswith("  Baris kedua")
+
+
+def test_stream_indenter_word_wrap():
+    """Verify prose word-wrapping without slicing words across terminal columns."""
+    ind = StreamIndenter(indent="  ", max_cols=30)
+    text = "Sistem kecerdasan buatan otonom untuk rekayasa perangkat lunak modern."
+    out = ind.feed(text) + ind.flush()
+    lines = out.splitlines()
+    assert len(lines) > 1
+    for line in lines:
+        assert line.startswith("  ")
+        assert len(line) <= 35  # within margin limit
+    # Whole words are preserved, not split
+    assert "kecerdasan" in out
+    assert "perangkat" in out
+
+
+def test_stream_indenter_bullet_continuation():
+    """Verify continuation lines of bullets align under the bullet content."""
+    ind = StreamIndenter(indent="  ", max_cols=30)
+    bullet_text = "- Baca/tulis file konfigurasi utama dari direktori proyek.\n"
+    out = ind.feed(bullet_text) + ind.flush()
+    lines = out.splitlines()
+    assert lines[0].startswith("  - Baca/tulis")
+    assert lines[1].startswith("    ")  # 4 spaces indentation matching bullet
+
+
+def test_stream_indenter_tab_normalization():
+    """Verify tabs are normalized to 2 spaces."""
+    ind = StreamIndenter(indent="  ")
+    out = ind.feed("item:\tvalue\n") + ind.flush()
+    assert "\t" not in out
+    assert "item: value" in out
+
+
+def test_stream_indenter_emoji_sanitization():
+    """Verify stray emojis that corrupt Windows consoles are stripped from stream."""
+    ind = StreamIndenter(indent="  ")
+    raw = "Hai! 👋 Saya Klyro AI\n- 📝 Baca file\n- 🗑️ Hapus file\n"
+    out = ind.feed(raw) + ind.flush()
+    assert "👋" not in out
+    assert "📝" not in out
+    assert "🗑" not in out
+    assert "Hai! Saya Klyro AI" in out
+    assert "Baca file" in out
+
+
+def test_stream_indenter_preserves_structural_lines():
+    """Verify structural lines (box frames, code fence borders) pass through intact."""
+    ind = StreamIndenter(indent="  ")
+    structural = "  │ Thinking line\n  ╭─ Header ─╮\n  ╰─ Footer ─╯\n"
+    out = ind.feed(structural) + ind.flush()
+    assert "  │ Thinking line" in out
+    assert "  ╭─ Header ─╮" in out
+    assert "  ╰─ Footer ─╯" in out

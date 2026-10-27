@@ -24,4 +24,10 @@ def isolate_klyro_environment(tmp_path, monkeypatch):
             pass
 
     monkeypatch.setattr(provider_manager, "CONFIG_FILE", sandbox_config)
+
+    from core import model_discovery
+    sandbox_dead = str(tmp_path / "sandbox_dead_models.json")
+    fresh_dead_mgr = model_discovery.DeadModelManager(file_path=sandbox_dead)
+    monkeypatch.setattr(model_discovery, "_GLOBAL_DEAD_MGR", fresh_dead_mgr)
+    monkeypatch.setattr(model_discovery, "get_dead_model_manager", lambda: fresh_dead_mgr)
     yield
