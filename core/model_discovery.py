@@ -6,7 +6,7 @@ core/model_discovery.py — Dynamic Live Model Discovery & Dead Model Self-Heali
    permanently blacklisted and excluded from SmartRouter and autocomplete.
 
 2. Live Discovery:
-   Queries live /models endpoints for OpenRouter, Groq, Mistral, and local Ollama
+   Queries live /models endpoints for OpenRouter, Groq, Claude, DeepSeek, and local Ollama
    (/api/tags) to maintain an accurate, fresh catalog of genuinely available models.
 """
 
@@ -76,14 +76,15 @@ class DeadModelManager:
         }
         self._save()
 
-        # Evict from runtime provider catalog if present
+        # NOTE: the static PROVIDER_CATALOG is intentionally NOT mutated here.
+        # Every consumer (provider_manager.get_provider_models,
+        # LiveModelDiscovery.get_models, SmartRouter.route) already hides
+        # models via is_dead() at read time; mutating the shared catalog made
+        # evictions permanent for the whole process and leaked across tests.
+        # Reset the user's saved active model if it was the evicted one.
         try:
             import provider_manager
             cat = provider_manager.PROVIDER_CATALOG.get(provider.lower(), {})
-            models = cat.get("models", [])
-            cat["models"] = [m for m in models if m.get("id") != model_id]
-
-            # If the evicted model was the user's saved active model, reset to default
             cfg = provider_manager.load_config()
             active_models = cfg.get("active_models", {})
             if active_models.get(provider.lower()) == model_id:
@@ -169,21 +170,36 @@ class LiveModelDiscovery:
         import provider_manager
 
         api_key = provider_manager.get_api_key(provider)
-        cat = provider_manager.PROVIDER_CATALOG.get(provider, {})
 
         if provider == "openrouter":
             return self._fetch_openrouter_free()
+        elif provider == "gemini":
+            return self._fetch_gemini_models(api_key)
         elif provider == "groq":
             return self._fetch_openai_compatible_models(
                 endpoint="https://api.groq.com/openai/v1/models",
                 api_key=api_key,
                 provider="groq"
             )
-        elif provider == "mistral":
+        elif provider in ("claude", "anthropic"):
+            return self._fetch_claude_models(api_key)
+        elif provider == "cerebras":
             return self._fetch_openai_compatible_models(
-                endpoint="https://api.mistral.ai/v1/models",
+                endpoint="https://api.cerebras.ai/v1/models",
                 api_key=api_key,
-                provider="mistral"
+                provider="cerebras"
+            )
+        elif provider == "deepseek":
+            return self._fetch_openai_compatible_models(
+                endpoint="https://api.deepseek.com/models",
+                api_key=api_key,
+                provider="deepseek"
+            )
+        elif provider == "openai":
+            return self._fetch_openai_compatible_models(
+                endpoint="https://api.openai.com/v1/models",
+                api_key=api_key,
+                provider="openai"
             )
         elif provider == "custom":
             cfg = provider_manager.load_config()
@@ -191,6 +207,95 @@ class LiveModelDiscovery:
             return self._fetch_ollama_models(base_url)
 
         return []
+
+    def _fetch_gemini_models(self, api_key: str) -> List[Dict[str, str]]:
+        """Fetch active models from Google Gemini API."""
+        if not api_key:
+            return []
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "KlyroCLI/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            models = []
+            for item in data.get("models", []):
+                raw_name = item.get("name", "")
+                m_id = raw_name.replace("models/", "")
+                methods = item.get("supportedGenerationMethods", [])
+                if "generateContent" not in methods:
+                    continue
+                # Exclude embedding / non-chat models
+                m_id_lower = m_id.lower()
+                if any(skip in m_id_lower for skip in ["embedding", "aqa", "imagen", "text-embedding"]):
+                    continue
+                display = item.get("displayName", m_id)
+                input_tokens = item.get("inputTokenLimit", 0) or 0
+                ctx_k = input_tokens // 1000 if input_tokens >= 1000 else input_tokens
+                ctx_str = f" • {ctx_k}K ctx" if ctx_k else ""
+                models.append({
+                    "id": m_id,
+                    "desc": f"▲ Google • {display}{ctx_str}"
+                })
+
+            def _gemini_sort_key(x):
+                mid = x["id"].lower()
+                if "argon" in mid or "gemini-4" in mid:
+                    return 0
+                if "3.8" in mid:
+                    return 1
+                if "3.6" in mid:
+                    return 2
+                if "3.5" in mid or "3.1" in mid:
+                    return 3
+                if "flash" in mid:
+                    return 4
+                if "pro" in mid:
+                    return 5
+                return 6
+
+            return sorted(models, key=_gemini_sort_key)
+        except Exception:
+            return []
+
+    def _fetch_claude_models(self, api_key: str) -> List[Dict[str, str]]:
+        """Fetch active models from Anthropic API."""
+        if not api_key:
+            return []
+        url = "https://api.anthropic.com/v1/models"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "User-Agent": "KlyroCLI/1.0"
+        }
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            models = []
+            for item in data.get("data", []):
+                m_id = item.get("id", "")
+                name = item.get("display_name", m_id)
+                if not m_id:
+                    continue
+                if "claude" in m_id.lower():
+                    desc = f"★ Anthropic • {name}"
+                    if "3-7" in m_id:
+                        desc = "★ Flagship 3.7 • Hybrid Reasoning & Elite Coding"
+                    elif "3-5-sonnet" in m_id:
+                        desc = "◈ Flagship 3.5 Sonnet • State-of-the-Art Software Engineering"
+                    elif "haiku" in m_id:
+                        desc = "⌁ Ultra Fast Haiku • Rapid Scripting & Efficient Chat"
+                    elif "opus" in m_id:
+                        desc = "▲ Legacy Opus • Deep Complex Reasoning"
+                    models.append({
+                        "id": m_id,
+                        "desc": desc
+                    })
+            return sorted(models, key=lambda x: x["id"], reverse=True)
+        except Exception:
+            return []
 
     def _fetch_openrouter_free(self) -> List[Dict[str, str]]:
         """Fetch active free models from OpenRouter API."""
@@ -201,7 +306,7 @@ class LiveModelDiscovery:
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-            
+
             models = []
             for item in data.get("data", []):
                 model_id = item.get("id", "")
@@ -214,9 +319,20 @@ class LiveModelDiscovery:
                 name = item.get("name", model_id)
                 models.append({
                     "id": model_id,
-                    "desc": f"🆓 {name} • {ctx // 1000}K ctx"
+                    "desc": f"⊙ {name} • {ctx // 1000}K ctx"
                 })
-            return models
+
+            # Sort with high-context and coding/reasoning models first
+            def _or_sort_key(x):
+                mid = x["id"].lower()
+                score = 0
+                if any(k in mid for k in ["coder", "code", "dev", "deepseek", "qwen"]):
+                    score += 10
+                if any(k in mid for k in ["super", "nemotron", "large", "70b", "120b"]):
+                    score += 5
+                return -score
+
+            return sorted(models, key=_or_sort_key)
         except Exception:
             return []
 
@@ -247,7 +363,7 @@ class LiveModelDiscovery:
                     continue
                 models.append({
                     "id": m_id,
-                    "desc": f"⚡ {m_id} • Active on {provider.upper()}"
+                    "desc": f"⌁ {m_id} • Active on {provider.upper()}"
                 })
             # Sort with coding/reasoning models first
             return sorted(models, key=lambda x: x["id"])
@@ -256,7 +372,6 @@ class LiveModelDiscovery:
 
     def _fetch_ollama_models(self, base_url: str) -> List[Dict[str, str]]:
         """Fetch locally installed models from Ollama /api/tags."""
-        # Clean base_url to root (e.g. http://localhost:11434/v1 -> http://localhost:11434)
         clean_url = base_url.rstrip("/").removesuffix("/v1")
         tags_endpoint = f"{clean_url}/api/tags"
         try:
@@ -272,11 +387,27 @@ class LiveModelDiscovery:
                 size_gb = round(item.get("size", 0) / (1024**3), 1)
                 models.append({
                     "id": name,
-                    "desc": f"💻 Local • {name} ({size_gb} GB)"
+                    "desc": f"▩ Local • {name} ({size_gb} GB)"
                 })
             return models
         except Exception:
             return []
+
+    def sync_all_providers(self, force_refresh: bool = True) -> Dict[str, List[Dict[str, str]]]:
+        """
+        Synchronizes live models across all configured providers.
+        Returns a dict of provider -> list of discovered models.
+        """
+        import provider_manager
+        results = {}
+        for prov in provider_manager.PROVIDER_CATALOG:
+            if prov in ("openrouter", "custom") or provider_manager.get_api_key(prov):
+                try:
+                    mods = self.get_models(prov, force_refresh=force_refresh)
+                    results[prov] = mods
+                except Exception:
+                    results[prov] = []
+        return results
 
 
 # Global instances

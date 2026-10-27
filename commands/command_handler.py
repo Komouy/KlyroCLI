@@ -47,12 +47,13 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
 
     if cmd in ["/help", "/?"]:
         bw = static_box_width(64)
-        print(f"\n  {FROST_CYAN}{BOLD}⚡ Klyro Command Palette{RESET}")
+        print(f"\n  {FROST_CYAN}{BOLD}⌁ Klyro Command Palette{RESET}")
 
         # Section 1: AI & Neural
         print(f"  {FROST_DARK}╭─ {FROST_INDIGO}{BOLD}AI & Neural Engine{RESET} {FROST_DARK}{'─'*(bw-21)}╮{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/provider, /p{RESET}      {FROST_GRAY}Setup AI provider & API key (Gemini, Groq, etc){RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/cmodel, /m{RESET}        {FROST_GRAY}Switch active model for current provider{RESET}")
+        print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/sync-models{RESET}       {FROST_GRAY}Sync latest official models directly from provider docs{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/router [auto|off]{RESET}   {FROST_GRAY}Universal workload-based routing & auto-fallback{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/think [auto|on|off]{RESET} {FROST_GRAY}Visual thought process & deep reasoning stream{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/consensus{RESET}         {FROST_GRAY}Toggle multi-model parallel consensus mode{RESET}")
@@ -68,12 +69,14 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/commit{RESET}            {FROST_GRAY}Auto-generate AI commit message & git commit{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/run [cmd]{RESET}         {FROST_GRAY}Smart run project script or background server{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/undo, /u{RESET}          {FROST_GRAY}Revert last AI file modifications{RESET}")
+        print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/copy, /cp [code|all]{RESET} {FROST_GRAY}Copy last AI code or response to clipboard{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/todo{RESET}              {FROST_GRAY}Scan workspace for TODOs & FIXMEs{RESET}")
         print(f"  {FROST_DARK}╰{'─'*bw}╯{RESET}")
 
         # Section 3: System & Diagnostics
         print(f"  {FROST_DARK}╭─ {FROST_MINT}{BOLD}System & Diagnostics{RESET} {FROST_DARK}{'─'*(bw-23)}╮{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/doctor, /doc{RESET}      {FROST_GRAY}Run comprehensive system & API health check{RESET}")
+        print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/docs [topic]{RESET}      {FROST_GRAY}Built-in user guide & documentation viewer{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/usage, /stat{RESET}      {FROST_GRAY}View tokens, speed (tok/s), latency & cost{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/history{RESET}           {FROST_GRAY}View or clear session conversation history{RESET}")
         print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}/cd [path]{RESET}         {FROST_GRAY}Change active project directory{RESET}")
@@ -85,6 +88,11 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
 
     elif cmd in ["/doctor", "/doc"]:
         doctor.run_diagnostics(folder_aktif)
+        return folder_aktif
+
+    elif cmd in ["/docs", "/guide", "/manual"]:
+        from commands.doc_viewer import run_doc_command
+        run_doc_command(args)
         return folder_aktif
 
     elif cmd in ["/router", "/route"]:
@@ -124,7 +132,7 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
 
             bw = static_box_width(62)
             BAR = f"{FROST_DARK}│{RESET}"
-            print(f"\n  {FROST_CYAN}{BOLD}⚡ Simulated Route Decision{RESET}")
+            print(f"\n  {FROST_CYAN}{BOLD}⌁ Simulated Route Decision{RESET}")
             print(f"  {FROST_DARK}╭{'─'*bw}╮{RESET}")
             preview = test_prompt if len(test_prompt) <= 45 else test_prompt[:42] + "..."
             print(f"  {BAR}  {FROST_GHOST}Query       :{RESET} {FROST_WHITE}\"{preview}\"{RESET}")
@@ -139,18 +147,18 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
         excluded = getattr(router, "_temp_excluded_providers", set())
         avail = provider_manager.get_available_providers()
 
-        status_tag = f"{FROST_MINT}● AUTO (Workload-Adaptive){RESET}" if ai_assistant.auto_route and not ai_assistant._user_locked_provider else f"{FROST_AMBER}🔒 LOCKED ({ai_assistant.provider.upper()}){RESET}"
+        status_tag = f"{FROST_MINT}● AUTO (Workload-Adaptive){RESET}" if ai_assistant.auto_route and not ai_assistant._user_locked_provider else f"{FROST_AMBER}■ LOCKED ({ai_assistant.provider.upper()}){RESET}"
         bw = static_box_width(64)
         BAR = f"{FROST_DARK}│{RESET}"
 
-        print(f"\n  {FROST_CYAN}{BOLD}🌐 Universal Smart Router Dashboard{RESET}")
+        print(f"\n  {FROST_CYAN}{BOLD}◍ Universal Smart Router Dashboard{RESET}")
         print(f"  {FROST_DARK}╭{'─'*bw}╮{RESET}")
         print(f"  {BAR}  {FROST_GHOST}Router Mode   :{RESET} {status_tag}")
         print(f"  {BAR}  {FROST_GHOST}Active Model  :{RESET} {FROST_WHITE}{ai_assistant.provider.upper()}{RESET} {FROST_DARK}•{RESET} {FROST_ICE}{ai_assistant.current_model}{RESET}")
         print(f"  {BAR}  {FROST_GHOST}Last Decision :{RESET} {FROST_GRAY}{getattr(ai_assistant, 'last_route_reason', 'None')}{RESET}")
         print(f"  {BAR}")
         print(f"  {BAR}  {FROST_CYAN}{BOLD}Provider Fleet Health:{RESET}")
-        for p_id in ["openrouter", "groq", "gemini", "cerebras", "deepseek", "mistral", "custom"]:
+        for p_id in ["openrouter", "claude", "deepseek", "groq", "gemini", "openai", "custom"]:
             if p_id not in provider_manager.PROVIDER_CATALOG:
                 continue
             cat = provider_manager.PROVIDER_CATALOG[p_id]
@@ -160,19 +168,19 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
                 or cat.get("default_model", "")
             )
             if p_id in excluded:
-                st = f"{FROST_AMBER}🟡 Rate-Limited{RESET}"
+                st = f"{FROST_AMBER}◐ Rate-Limited{RESET}"
             elif p_id in avail:
-                st = f"{FROST_MINT}🟢 Ready{RESET}"
+                st = f"{FROST_MINT}● Ready{RESET}"
             else:
-                st = f"{FROST_DARK}⚪ No API Key{RESET}"
+                st = f"{FROST_DARK}○ No API Key{RESET}"
             m_short = m if len(m) <= 22 else m[:19] + "..."
             print(f"  {BAR}    {FROST_WHITE}{name:<16}{RESET} {st:<28} {FROST_DARK}{m_short}{RESET}")
         print(f"  {BAR}")
         print(f"  {BAR}  {FROST_CYAN}{BOLD}Workload Tier Routing Map:{RESET}")
-        print(f"  {BAR}    {FROST_ICE}⚡ LIGHT    {RESET} {FROST_DARK}➔ Quick Q&A, chat, commands (speed priority){RESET}")
-        print(f"  {BAR}    {FROST_MINT}💻 CODE     {RESET} {FROST_DARK}➔ Code creation, edit, debug, refactoring{RESET}")
-        print(f"  {BAR}    {FROST_INDIGO}🧠 REASONING{RESET} {FROST_DARK}➔ Complex algorithms, math, architecture{RESET}")
-        print(f"  {BAR}    {FROST_CORAL}📦 HEAVY    {RESET} {FROST_DARK}➔ Whole-project audit, multi-file migrations{RESET}")
+        print(f"  {BAR}    {FROST_ICE}⌁ LIGHT    {RESET} {FROST_DARK}➔ Quick Q&A, chat, commands (speed priority){RESET}")
+        print(f"  {BAR}    {FROST_MINT}▩ CODE     {RESET} {FROST_DARK}➔ Code creation, edit, debug, refactoring{RESET}")
+        print(f"  {BAR}    {FROST_INDIGO}◈ REASONING{RESET} {FROST_DARK}➔ Complex algorithms, math, architecture{RESET}")
+        print(f"  {BAR}    {FROST_CORAL}⬢ HEAVY    {RESET} {FROST_DARK}➔ Whole-project audit, multi-file migrations{RESET}")
         print(f"  {FROST_DARK}╰{'─'*bw}╯{RESET}")
         print(f"  {FROST_DARK}Commands:{RESET} {FROST_CYAN}/router auto{RESET} {FROST_DARK}│{RESET} {FROST_CYAN}/router off{RESET} {FROST_DARK}│{RESET} {FROST_CYAN}/router reset{RESET} {FROST_DARK}│{RESET} {FROST_CYAN}/router test <query>{RESET}\n")
         return folder_aktif
@@ -216,7 +224,7 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
 
             bw = static_box_width(58)
             BAR = f"{FROST_DARK}│{RESET}"
-            print(f"\n  {FROST_DARK}╭─ {FROST_ICE}{BOLD}🧠 Visual Thinking Engine{RESET} {FROST_DARK}{'─'*(bw-27)}╮{RESET}")
+            print(f"\n  {FROST_DARK}╭─ {FROST_ICE}{BOLD}◈ Visual Thinking Engine{RESET} {FROST_DARK}{'─'*(bw-27)}╮{RESET}")
             print(f"  {BAR}  {FROST_GRAY}Status Mode :{RESET} {mode_str}")
             print(f"  {BAR}  {FROST_GRAY}Overhead    :{RESET} {FROST_MINT}0 token (Zero extra cost on Auto){RESET}")
             print(f"  {BAR}  {FROST_GRAY}Supported   :{RESET} {FROST_WHITE}DeepSeek R1, QwQ, Nemotron, Groq Reasoning{RESET}")
@@ -232,10 +240,12 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
         active_prov = ai_assistant.provider
         catalog_entry = provider_manager.PROVIDER_CATALOG.get(active_prov, {})
 
-        # /cmodel refresh|sync|update|restart|reload — force live model fetch from provider API
-        if args and args.strip().lower() in ("refresh", "sync", "update", "restart", "reload"):
+        # /cmodel refresh|restart|reload|update — force live model fetch for current provider
+        # /cmodel sync [all|provider] — multi-provider live model synchronization
+        subcmd = args.strip().lower() if args else ""
+        if subcmd in ("refresh", "restart", "reload", "update"):
             prov_name = catalog_entry.get("name", active_prov.upper())
-            print(f"  {FROST_CYAN}🔄 Fetching live models from {prov_name}...{RESET}")
+            print(f"  {FROST_CYAN}↻ Fetching live models from {prov_name}...{RESET}")
             try:
                 fresh = provider_manager.get_provider_models(active_prov, force_refresh=True)
                 if fresh:
@@ -246,17 +256,64 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
                 print(f"  {FROST_CORAL}✗{RESET} Refresh failed: {e}\n")
             return folder_aktif
 
+        if subcmd.startswith("sync"):
+            parts = subcmd.split()
+            target_prov = parts[1] if len(parts) > 1 and parts[1] != "all" else None
+
+            from core.model_discovery import get_live_discovery, get_dead_model_manager
+            discovery = get_live_discovery()
+            dead_mgr = get_dead_model_manager()
+
+            if target_prov:
+                if target_prov not in provider_manager.PROVIDER_CATALOG:
+                    print(f"  {FROST_CORAL}✗{RESET} Unknown provider '{target_prov}'. Available: {', '.join(provider_manager.PROVIDER_CATALOG.keys())}\n")
+                    return folder_aktif
+                prov_name = provider_manager.PROVIDER_CATALOG[target_prov].get("name", target_prov.upper())
+                print(f"  {FROST_CYAN}↻ Fetching live models from {prov_name}...{RESET}")
+                try:
+                    fresh = provider_manager.get_provider_models(target_prov, force_refresh=True)
+                    if fresh:
+                        print(f"  {FROST_MINT}✓{RESET} Refreshed {BOLD}{len(fresh)}{RESET} live model(s) for {prov_name}.\n")
+                    else:
+                        print(f"  {FROST_AMBER}⚠{RESET} No live models returned — kept current catalog fallback.\n")
+                except Exception as e:
+                    print(f"  {FROST_CORAL}✗{RESET} Refresh failed: {e}\n")
+            else:
+                print(f"\n  {FROST_CYAN}{BOLD}⌁ Synchronizing Live AI Models Across All Providers...{RESET}")
+                bw = static_box_width(60)
+                print(f"  {FROST_DARK}┌{'─'*bw}┐{RESET}")
+                synced = discovery.sync_all_providers(force_refresh=True)
+                for p_id, p_models in synced.items():
+                    p_name = provider_manager.PROVIDER_CATALOG.get(p_id, {}).get("name", p_id.upper())
+                    count = len(p_models)
+                    if count > 0:
+                        status_str = f"{FROST_MINT}{count} live model(s) verified{RESET}"
+                    else:
+                        status_str = f"{FROST_GRAY}using offline fallback{RESET}"
+                    print(f"  {FROST_DARK}│{RESET}  {FROST_WHITE}{p_name:<24}{RESET} {FROST_DARK}→{RESET} {status_str}")
+                dead_count = len(dead_mgr.get_all_dead())
+                if dead_count > 0:
+                    print(f"  {FROST_DARK}│{RESET}  {FROST_AMBER}Self-Healing Deadlist   :{RESET} {dead_count} obsolete model(s) safely evicted")
+                print(f"  {FROST_DARK}└{'─'*bw}┘{RESET}")
+                print(f"  {FROST_MINT}✓{RESET} {FROST_GRAY}Live catalog updated. Run {FROST_CYAN}/cmodel{FROST_GRAY} to switch models.{RESET}\n")
+            return folder_aktif
+
         models = provider_manager.get_models_list(active_prov)
         model_ids = [m["id"] for m in models]
+        prov_name = catalog_entry.get("name", active_prov.upper())
+        is_auto = getattr(ai_assistant, "auto_route", False) and getattr(ai_assistant, "target_model", "") in ("auto", "copilot", "default")
 
         if not args:
-            prov_name = catalog_entry.get("name", active_prov.upper())
-            options_model = []
-            default_idx = 0
+            options_model = [
+                {
+                    "label": "◈ Auto / Smart Routing",
+                }
+            ]
+            default_idx = 0 if is_auto else 0
             for i, m in enumerate(models):
                 m_id = m["id"]
-                if m_id == ai_assistant.current_model:
-                    default_idx = i
+                if not is_auto and m_id == ai_assistant.current_model:
+                    default_idx = i + 1
                 options_model.append({
                     "label": m_id,
                     "description": m["desc"]
@@ -265,30 +322,59 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
             chosen_idx = interactive_select(f"Switch {prov_name} Model", options_model, default_idx)
             if chosen_idx == -1:
                 return folder_aktif
-            target = model_ids[chosen_idx]
 
-            ai_assistant.switch_provider(active_prov, target)
-            provider_manager.set_active_provider(active_prov, target)
-            print(f"  {FROST_MINT}✓{RESET} Model switched to {BOLD}{target}{RESET}\n")
+            if chosen_idx == 0:
+                ai_assistant.set_model("auto")
+                print(f"\n  {FROST_DARK}│{RESET}  {FROST_MINT}✓{RESET} {BOLD}Auto Routing (Copilot Mode){RESET} {FROST_MINT}activated{RESET} for {prov_name}")
+                print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}•{RESET} {FROST_WHITE}Casual Chat / Q&A          :{RESET} {FROST_GRAY}Fast lightweight model (kecepatan & efisiensi){RESET}")
+                print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}•{RESET} {FROST_WHITE}Coding / Debug / Refactor  :{RESET} {FROST_MINT}Flagship large model (kualitas & akurasi){RESET}")
+                print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}•{RESET} {FROST_WHITE}Algoritma / Deep Logic     :{RESET} {FROST_ICE}Reasoning model (analisis mendalam){RESET}\n")
+                return folder_aktif
+
+            target = model_ids[chosen_idx - 1]
+            ai_assistant.set_model(target)
+            print(f"  {FROST_MINT}✓{RESET} Model switched to {BOLD}{target}{RESET} {FROST_DARK}(Manual mode){RESET}\n")
         else:
-            target = args.strip()
-            if target.isdigit() and models:
-                idx = int(target) - 1
-                if 0 <= idx < len(model_ids):
-                    target = model_ids[idx]
-                else:
-                    print(f"  {FROST_CORAL}✗{RESET} Number out of range. Use 1–{len(models)}.\n")
+            arg_clean = args.strip()
+            arg_lower = arg_clean.lower()
+
+            if arg_lower in ("auto", "copilot", "default", "smart"):
+                ai_assistant.set_model("auto")
+                print(f"\n  {FROST_DARK}│{RESET}  {FROST_MINT}✓{RESET} {BOLD}Auto Routing (Copilot Mode){RESET} {FROST_MINT}activated{RESET} for {prov_name}")
+                print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}•{RESET} {FROST_WHITE}Casual Chat / Q&A          :{RESET} {FROST_GRAY}Fast lightweight model (kecepatan & efisiensi){RESET}")
+                print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}•{RESET} {FROST_WHITE}Coding / Debug / Refactor  :{RESET} {FROST_MINT}Flagship large model (kualitas & akurasi){RESET}\n")
+                return folder_aktif
+
+            if arg_lower in ("auto all", "auto-all", "all auto"):
+                ai_assistant.auto_route = True
+                ai_assistant.set_model("auto", lock_provider=False)
+                print(f"\n  {FROST_DARK}│{RESET}  {FROST_MINT}✓{RESET} {BOLD}Global Multi-Provider Auto Routing{RESET} {FROST_MINT}activated{RESET}")
+                print(f"  {FROST_DARK}│{RESET}  {FROST_GRAY}Klyro will dynamically route across all configured providers based on workload.{RESET}\n")
+                return folder_aktif
+
+            if arg_clean.isdigit() and models:
+                idx = int(arg_clean)
+                if idx == 1:
+                    ai_assistant.set_model("auto")
+                    print(f"\n  {FROST_DARK}│{RESET}  {FROST_MINT}✓{RESET} {BOLD}Auto Routing (Copilot Mode){RESET} {FROST_MINT}activated{RESET} for {prov_name}\n")
                     return folder_aktif
-            elif model_ids and target not in model_ids:
+                elif 2 <= idx <= len(model_ids) + 1:
+                    target = model_ids[idx - 2]
+                else:
+                    print(f"  {FROST_CORAL}✗{RESET} Number out of range. Use 1 (Auto) or 2–{len(models) + 1}.\n")
+                    return folder_aktif
+            elif model_ids and arg_clean not in model_ids:
                 if active_prov == "custom":
-                    pass
+                    target = arg_clean
                 else:
-                    print(f"  {FROST_CORAL}✗{RESET} Unknown model '{target}' for {catalog_entry.get('name', active_prov.upper())}.")
-                    print(f"  {FROST_DARK}Run {FROST_CYAN}/cmodel{FROST_DARK} with no argument to pick from the list.{RESET}\n")
+                    print(f"  {FROST_CORAL}✗{RESET} Unknown model '{arg_clean}' for {prov_name}.")
+                    print(f"  {FROST_DARK}Run {FROST_CYAN}/cmodel{FROST_DARK} or {FROST_CYAN}/cmodel auto{FROST_DARK} to pick from the list.{RESET}\n")
                     return folder_aktif
-            ai_assistant.switch_provider(active_prov, target)
-            provider_manager.set_active_provider(active_prov, target)
-            print(f"  {FROST_MINT}✓{RESET} Model switched to {BOLD}{target}{RESET}\n")
+            else:
+                target = arg_clean
+
+            ai_assistant.set_model(target)
+            print(f"  {FROST_MINT}✓{RESET} Model switched to {BOLD}{target}{RESET} {FROST_DARK}(Manual mode){RESET}\n")
         return folder_aktif
 
     elif cmd in ["/provider", "/setup", "/p"]:
@@ -414,7 +500,7 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
                 return folder_aktif
 
         if is_bg:
-            print(f"  {FROST_CYAN}⚡ Starting server in background:{RESET} {FROST_WHITE}{cmd_to_run}{RESET}")
+            print(f"  {FROST_CYAN}⌁ Starting server in background:{RESET} {FROST_WHITE}{cmd_to_run}{RESET}")
             res = runner.start_server_process(cmd_to_run, folder_aktif)
             if res.get("success"):
                 print(f"  {FROST_MINT}✓{RESET} {res.get('message')}")
@@ -422,7 +508,7 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
             else:
                 print(f"  {FROST_CORAL}✗{RESET} Failed to start background server: {res.get('error')}\n")
         else:
-            print(f"  {FROST_CYAN}⚡ Running:{RESET} {FROST_WHITE}{cmd_to_run}{RESET}")
+            print(f"  {FROST_CYAN}⌁ Running:{RESET} {FROST_WHITE}{cmd_to_run}{RESET}")
             print(f"  {FROST_DARK}Interactive — type program input here. Ctrl+C to stop.{RESET}")
             res = runner.execute_script(cmd_to_run, folder_aktif, interactive=True)
             if res.get("stdout"):
@@ -510,6 +596,31 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
 
         print(f"  {FROST_DARK}└{'─'*static_box_width(70)}┘{RESET}")
         print(f"  {FROST_DARK}Type {FROST_CYAN}/registry refresh{FROST_DARK} to fetch latest from OpenRouter API.{RESET}\n")
+        return folder_aktif
+
+    elif cmd in ["/sync-models", "/sync", "/models-sync"]:
+        from core.model_crawler import get_model_crawler, OFFICIAL_SOURCES
+        crawler = get_model_crawler()
+        bw = static_box_width(72)
+        print(f"\n  {FROST_CYAN}{BOLD}⌁ Klyro AI Official Model Synchronizer{RESET}")
+        print(f"  {FROST_DARK}┌{'─'*bw}┐{RESET}")
+        print(f"  {FROST_DARK}│{RESET}  {FROST_GRAY}Harvesting active models directly from official docs & endpoints...{RESET}")
+
+        arg_clean = (args or "").strip().lower()
+        if arg_clean and arg_clean in OFFICIAL_SOURCES:
+            targets = [arg_clean]
+        else:
+            targets = list(OFFICIAL_SOURCES.keys())
+
+        for p in targets:
+            info = OFFICIAL_SOURCES[p]
+            print(f"  {FROST_DARK}│{RESET}  {FROST_CYAN}⠋{RESET} Fetching {FROST_WHITE}{info['name']:<18}{RESET} {FROST_DARK}[{info['doc_url']}]{RESET}...", end="", flush=True)
+            res = crawler.sync_provider(p, ai_assistant=ai_assistant)
+            cnt = res.get("count", 0)
+            print(f"\r  {FROST_DARK}│{RESET}  {FROST_MINT}✔{RESET} {FROST_WHITE}{info['name']:<18}{RESET} : {FROST_CYAN}{cnt} official models active{RESET}             ")
+
+        print(f"  {FROST_DARK}└{'─'*bw}┘{RESET}")
+        print(f"  {FROST_MINT}✦ Klyro model catalog is up to date! Type {FROST_CYAN}/cmodel{FROST_MINT} to switch models.{RESET}\n")
         return folder_aktif
 
     elif cmd == "/todo":
@@ -620,6 +731,24 @@ def handle_slash_command(cmd: str, args: str, folder_aktif: str, ai_assistant) -
                     print(f"    {FROST_CYAN}{h}{RESET}")
             else:
                 print(f"  {FROST_DARK}Tried workspace, home, and Documents — no close match.{RESET}")
+        return folder_aktif
+
+    elif cmd in ["/copy", "/cp"]:
+        import clipboard_manager
+        arg_mode = (args or "auto").strip().lower()
+        if arg_mode in ["?", "help", "--help"]:
+            print(f"\n  {FROST_CYAN}{BOLD}▦ Klyro Clipboard Copy (/copy, /cp){RESET}")
+            print(f"  {FROST_GRAY}Usage:{RESET}")
+            print(f"    {FROST_CYAN}/copy{RESET} or {FROST_CYAN}/cp{RESET}       {FROST_GRAY}Salin blok kode terakhir (atau teks jika tak ada kode){RESET}")
+            print(f"    {FROST_CYAN}/copy code{RESET}      {FROST_GRAY}Salin khusus blok kode terakhir dari AI{RESET}")
+            print(f"    {FROST_CYAN}/copy all{RESET}       {FROST_GRAY}Salin seluruh respons teks AI terakhir{RESET}\n")
+            return folder_aktif
+
+        ok, target_desc, msg = clipboard_manager.copy_last_ai_response(folder_aktif, mode=arg_mode)
+        if ok:
+            print(f"\n  {FROST_MINT}✔{RESET} {BOLD}{target_desc}{RESET} disalin ke clipboard! {FROST_DARK}({msg}){RESET}\n")
+        else:
+            print(f"\n  {FROST_CORAL}✗{RESET} {msg}\n")
         return folder_aktif
 
     elif cmd in ["/exit", "/quit"]:
@@ -892,7 +1021,7 @@ def execute_ai_actions(response_text: str, folder_aktif: str, ai_assistant) -> s
 
                     cmd = runner.wrap_script_command(cmd, folder_aktif)
                     interactive = runner.command_needs_tty(cmd)
-                    print(f"  {FROST_CYAN}⚡{RESET} Running: {FROST_WHITE}{cmd}{RESET}")
+                    print(f"  {FROST_CYAN}⌁{RESET} Running: {FROST_WHITE}{cmd}{RESET}")
                     if interactive:
                         print(f"  {FROST_DARK}Interactive — type program input here. Ctrl+C to stop.{RESET}")
                     res = runner.execute_script(cmd, folder_aktif, interactive=interactive)

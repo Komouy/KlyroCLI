@@ -21,14 +21,53 @@ _SESSION_USAGE = {
 # Pricing estimation per 1M tokens ($ USD)
 PROVIDER_PRICING = {
     "gemini":     {"prompt": 0.0,    "completion": 0.0,    "tag": "Free Tier"},
+    "claude":     {"prompt": 3.0,    "completion": 15.0,   "tag": "Paid (Claude 3.7 / 3.5)"},
+    "deepseek":   {"prompt": 0.14,   "completion": 0.28,   "tag": "Paid (V3/V4)"},
     "groq":       {"prompt": 0.0,    "completion": 0.0,    "tag": "Free Tier"},
     "cerebras":   {"prompt": 0.0,    "completion": 0.0,    "tag": "Free Tier (1M/day)"},
     "openrouter": {"prompt": 0.0,    "completion": 0.0,    "tag": "Free Models (:free)"},
-    "mistral":    {"prompt": 0.0,    "completion": 0.0,    "tag": "Experiment Tier"},
     "custom":     {"prompt": 0.0,    "completion": 0.0,    "tag": "Local / Free"},
-    "deepseek":   {"prompt": 0.14,   "completion": 0.28,   "tag": "Paid (V3/V4)"},
     "openai":     {"prompt": 0.15,   "completion": 0.60,   "tag": "Paid (GPT-4o mini)"},
 }
+
+
+# Global in-memory storage for the latest raw AI response
+_LAST_AI_RESPONSE = ""
+
+
+def set_last_response(response_text: str):
+    """Store the most recent AI response in memory."""
+    global _LAST_AI_RESPONSE
+    _LAST_AI_RESPONSE = response_text or ""
+
+
+def get_last_response() -> str:
+    """Return the most recent AI response generated in this session."""
+    global _LAST_AI_RESPONSE
+    return _LAST_AI_RESPONSE
+
+
+def get_prompt_history_file(folder_path: str = None) -> str:
+    """Return path to prompt history file for persistent CLI history across sessions.
+    Prefers user's home directory ~/.klyro/prompt_history, falling back to local workspace.
+    """
+    home_dir = os.path.expanduser("~")
+    home_klyro = os.path.join(home_dir, ".klyro")
+    try:
+        os.makedirs(home_klyro, exist_ok=True)
+        return os.path.join(home_klyro, "prompt_history")
+    except Exception:
+        pass
+
+    if folder_path:
+        local_klyro = os.path.join(os.path.abspath(folder_path), ".klyro")
+        try:
+            os.makedirs(local_klyro, exist_ok=True)
+            return os.path.join(local_klyro, "prompt_history")
+        except Exception:
+            pass
+
+    return os.path.join(os.getcwd(), ".klyro_prompt_history")
 
 
 def _get_history_file(folder_path: str) -> str:
@@ -109,6 +148,9 @@ def get_usage_metrics() -> dict:
 
 def save_interaction(folder_path: str, user_prompt: str, ai_response: str, provider: str, model: str, duration_sec: float):
     """Save an interaction into the local .klyro/history.json file."""
+    global _LAST_AI_RESPONSE
+    _LAST_AI_RESPONSE = ai_response or ""
+
     if not folder_path or not os.path.exists(folder_path):
         return
 
@@ -119,7 +161,8 @@ def save_interaction(folder_path: str, user_prompt: str, ai_response: str, provi
         "model": model,
         "duration_sec": round(duration_sec, 2),
         "prompt": user_prompt,
-        "response_summary": (ai_response[:180] + "...") if len(ai_response) > 180 else ai_response
+        "response_summary": (ai_response[:180] + "...") if len(ai_response) > 180 else ai_response,
+        "raw_response": ai_response,
     }
 
     history = []

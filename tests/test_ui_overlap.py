@@ -111,14 +111,14 @@ def test_banner_aurora_sweep_draws_single_card(monkeypatch):
 
     assert sum(1 for l in rows if l.strip().startswith("╭")) == 1, "duplicated top border"
     assert sum(1 for l in rows if l.strip().startswith("╰")) == 1, "duplicated bottom border"
-    for pill in ("WORKSPACE", "AI ENGINE", "QUICK START"):
+    for pill in ("WORKSPACE", "AI ENGINE"):
         hits = [l for l in rows if pill in l]
         assert len(hits) == 1, f"{pill} drawn {len(hits)} times: {hits}"
     for l in rows:  # content rows must never be smeared by section pills
         if any(k in l for k in ("folder", "files ", "git ")):
             assert "WORKSPACE" not in l and "AI ENGINE" not in l, f"smeared: {l}"
         if any(k in l for k in ("provider", "model ", "runtime")):
-            assert "QUICK START" not in l and "AI ENGINE" not in l, f"smeared: {l}"
+            assert "WORKSPACE" not in l and "AI ENGINE" not in l, f"smeared: {l}"
 
 
 def test_menu_shimmer_and_glide_leave_no_residue(monkeypatch):

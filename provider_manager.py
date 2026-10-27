@@ -14,121 +14,119 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "klyro_co
 PROVIDER_CATALOG = {
     "gemini": {
         "name": "Google Gemini",
-        "tag": "🔥 Free • Best Free Tier & Long Context (1M)",
+        "tag": "▲ Free • Best Free Tier & Long Context (1M)",
         "base_url": None,
         "default_model": "gemini-3.6-flash",
         "models": [
-            {"id": "gemini-3.6-flash",         "desc": "🔥 Recommended • Fast, Smart & 1M Context"},
-            {"id": "gemini-3.5-flash-lite",    "desc": "⚡ Ultra Lightweight • High Speed & Low Latency"},
-            {"id": "gemini-3.1-pro-preview",   "desc": "🧠 Complex Reasoning • Large Architectures"},
+            {"id": "gemini-3.8-flash",         "desc": "★ Flagship 2026 • Engineered for Software Engineering & Agents"},
+            {"id": "gemini-4-argon",           "desc": "◈ Frontier Flagship • Deep Reasoning & 1M Output Decodes"},
+            {"id": "gemini-3.6-flash",         "desc": "▲ Stable Agentic • Fast, Smart & 1M Context"},
+            {"id": "gemini-3.5-flash-lite",    "desc": "⌁ Ultra Lightweight • High Speed & Low Latency"},
+            {"id": "gemini-3.1-flash-lite",    "desc": "⌁ Frontier-Class Lite • Cost-Efficient Performance"},
+            {"id": "gemini-3.1-pro-preview",   "desc": "◈ Complex Reasoning • Large Architectures & Logic"},
+            {"id": "gemini-2.5-flash",         "desc": "▲ Legacy Stable 2.5 • Fast Multimodal Reasoning"},
+            {"id": "gemini-2.5-pro",           "desc": "◈ Legacy Stable 2.5 • Complex Tasks & Deep Coding"},
+            {"id": "gemini-2.0-flash",         "desc": "⌁ Deprecated 2.0 • Replaced by 3.8 Flash"},
+            {"id": "gemini-1.5-flash",         "desc": "⌁ Stable 1.5 Flash • 1M Context Window"},
+            {"id": "gemini-1.5-pro",           "desc": "◈ Stable 1.5 Pro • 2M Context Window"},
         ],
         "key_env": "GEMINI_API_KEY",
-        "key_placeholder": "AQ... (atau AIzaSy...)"
+        "key_placeholder": "AQ..."
     },
     "groq": {
         "name": "Groq LPU",
-        "tag": "⚡ Free • Ultra Fast ~500 tok/s (120B / Qwen)",
+        "tag": "⌁ Free • Ultra Fast ~500 tok/s (120B / Qwen)",
         "base_url": "https://api.groq.com/openai/v1",
         "default_model": "openai/gpt-oss-120b",
         "models": [
-            {"id": "openai/gpt-oss-120b",      "desc": "🏆 Best for Coding • Flagship 120B Open-Source"},
-            {"id": "groq/compound-mini",       "desc": "⚡ Lightweight & Fast • File Edits & Quick Refactors"},
-            {"id": "qwen/qwen3.8-27b",         "desc": "🧠 Strong Logic & Math • Accurate for Algorithms"},
-            {"id": "groq/compound",            "desc": "🔥 Multi-Agent Flagship • Deep Code Analysis"},
-            {"id": "openai/gpt-oss-20b",       "desc": "⚡ Fast & Efficient • Low-latency Scripting"},
-            {"id": "qwen/qwen3.6-27b",         "desc": "🧠 Stable Baseline • General Programming"},
+            {"id": "llama-3.3-70b-versatile",  "desc": "★ Flagship 70B • Best for Coding, Debugging & Analysis"},
+            {"id": "llama-3.1-8b-instant",     "desc": "⌁ Ultra Fast Instant • 8B Low Latency Scripting"},
+            {"id": "deepseek-r1-distill-llama-70b", "desc": "◈ DeepSeek R1 Distill • Complex Logic & Reasoning"},
+            {"id": "mixtral-8x7b-32768",       "desc": "▲ Mixtral MoE • 32K Context Window"},
+            {"id": "qwen-qwq-32b",             "desc": "◈ QwQ 32B • Reasoning & Math Specialist"},
+            {"id": "openai/gpt-oss-120b",      "desc": "★ Best for Coding • Flagship 120B Open-Source"},
+            {"id": "groq/compound-mini",       "desc": "⌁ Lightweight & Fast • File Edits & Quick Refactors"},
+            {"id": "qwen/qwen3.8-27b",         "desc": "◈ Strong Logic & Math • Accurate for Algorithms"},
+            {"id": "groq/compound",            "desc": "▲ Multi-Agent Flagship • Deep Code Analysis"},
+            {"id": "openai/gpt-oss-20b",       "desc": "⌁ Fast & Efficient • Low-latency Scripting"},
+            {"id": "qwen/qwen3.6-27b",         "desc": "◈ Stable Baseline • General Programming"},
         ],
         "key_env": "GROQ_API_KEY",
         "key_placeholder": "gsk_..."
     },
-    "cerebras": {
-        "name": "Cerebras",
-        "tag": "🚀 Super Fast Cerebras Wafer Hardware",
-        "base_url": "https://api.cerebras.ai/v1",
-        "default_model": "gpt-oss-120b",
+    "claude": {
+        "name": "Anthropic Claude",
+        "tag": "▲ Frontier • Claude 3.7 Sonnet, 3.5 Sonnet & Haiku",
+        "base_url": "https://api.anthropic.com/v1",
+        "default_model": "claude-3-7-sonnet-20250219",
         "models": [
-            {"id": "gpt-oss-120b",             "desc": "🏆 120B Model • Deep Reasoning & Complex Coding"},
-            {"id": "gemma-4-31b",              "desc": "🧠 Multimodal & Vision • General Intelligence"},
-            {"id": "llama-3.3-70b",            "desc": "🔥 Llama 70B • Reliable Full-Stack Development"},
-            {"id": "llama3.1-8b",              "desc": "⚡ Llama 8B • Super Fast & Lightweight"},
+            {"id": "claude-3-7-sonnet-20250219", "desc": "★ Flagship 3.7 Sonnet • Hybrid Reasoning & Elite Coding"},
+            {"id": "claude-3-5-sonnet-20241022", "desc": "◈ Flagship 3.5 Sonnet • State-of-the-Art Software Engineering"},
+            {"id": "claude-3-5-haiku-20241022",  "desc": "⌁ Ultra Fast Haiku • Rapid Scripting & Efficient Chat"},
+            {"id": "claude-3-opus-20240229",    "desc": "▲ Legacy Opus • Deep Complex Reasoning"},
         ],
-        "key_env": "CEREBRAS_API_KEY",
-        "key_placeholder": "csk-..."
+        "key_env": "ANTHROPIC_API_KEY",
+        "key_placeholder": "sk-ant-api03-..."
     },
     "openrouter": {
         "name": "OpenRouter",
-        "tag": "🌐 Smart Free Tier • Dynamic Model Discovery + Klyro Router",
+        "tag": "◍ Smart Free Tier • Dynamic Model Discovery + Klyro Router",
         "base_url": "https://openrouter.ai/api/v1",
         "default_model": "z-ai/glm-5.2:free",
         # NOTE: This static list is the fallback / seed only.
         # At runtime, get_models_list("openrouter") returns models from
         # the dynamic Klyro Model Registry (openrouter_registry.py).
         "models": [
-            {"id": "z-ai/glm-5.2:free",                      "desc": "🧠 GLM 5.2 Free • Complex Coding, Agent, 256K ctx [HIGH]"},
-            {"id": "minimax/minimax-m3:free",                 "desc": "🌊 MiniMax M3 Free • 1M Context, Multimodal, Long Agent [HIGH]"},
-            {"id": "nvidia/nemotron-3-super-120b-a12b:free",  "desc": "🔥 Nemotron 3 Super Free • 120B, Reasoning, Multi-agent [HEAVY]"},
-            {"id": "openrouter/auto",                         "desc": "🔄 OpenRouter Auto • Best available free model (simple fallback)"},
+            {"id": "z-ai/glm-5.2:free",                      "desc": "◈ GLM 5.2 Free • Complex Coding, Agent, 256K ctx [HIGH]"},
+            {"id": "minimax/minimax-m3:free",                 "desc": "≋ MiniMax M3 Free • 1M Context, Multimodal, Long Agent [HIGH]"},
+            {"id": "nvidia/nemotron-3-super-120b-a12b:free",  "desc": "▲ Nemotron 3 Super Free • 120B, Reasoning, Multi-agent [HEAVY]"},
+            {"id": "openrouter/auto",                         "desc": "↻ OpenRouter Auto • Best available free model (simple fallback)"},
         ],
         "key_env": "OPENROUTER_API_KEY",
         "key_placeholder": "sk-or-v1-..."
     },
-    "mistral": {
-        "name": "Mistral AI",
-        "tag": "🇫🇷 Free • Experiment Tier (500k tok/min)",
-        "base_url": "https://api.mistral.ai/v1",
-        "default_model": "mistral-small-latest",
-        "models": [
-            {"id": "mistral-small-latest",     "desc": "🏆 Recommended • Fast & Lightweight Coding"},
-            {"id": "codestral-latest",         "desc": "💻 Coding Specialist • Syntax, Refactor & Debug"},
-            {"id": "mistral-medium-latest",    "desc": "🧠 Medium Logic • Project Structure Analysis"},
-            {"id": "mistral-large-latest",     "desc": "🔥 Flagship Mistral • Highest Quality & Accuracy"},
-            {"id": "open-mistral-7b",          "desc": "⚡ Open Weight 7B • Ultra Fast"},
-        ],
-        "key_env": "MISTRAL_API_KEY",
-        "key_placeholder": "..."
-    },
     "deepseek": {
         "name": "DeepSeek",
-        "tag": "🧠 Paid • Smart Coding & Reasoning (V3/V4)",
+        "tag": "◈ Paid • Smart Coding & Reasoning (V3/V4)",
         "base_url": "https://api.deepseek.com",
         "default_model": "deepseek-chat",
         "models": [
-            {"id": "deepseek-chat",            "desc": "🏆 Recommended V3 • Top-tier Coding & Chat"},
-            {"id": "deepseek-reasoner",        "desc": "🧠 R1 Thinking Mode • Deep Logic & Problem Solving"},
-            {"id": "deepseek-v4-pro",          "desc": "🔥 V4 Pro Preview • Maximum Capability"},
-            {"id": "deepseek-v4-flash",        "desc": "⚡ V4 Flash • High Efficiency & Speed"},
+            {"id": "deepseek-chat",            "desc": "★ Recommended V3 • Top-tier Coding & Chat"},
+            {"id": "deepseek-reasoner",        "desc": "◈ R1 Thinking Mode • Deep Logic & Problem Solving"},
+            {"id": "deepseek-v4-pro",          "desc": "▲ V4 Pro Preview • Maximum Capability"},
+            {"id": "deepseek-v4-flash",        "desc": "⌁ V4 Flash • High Efficiency & Speed"},
         ],
         "key_env": "DEEPSEEK_API_KEY",
         "key_placeholder": "sk-..."
     },
     "openai": {
         "name": "OpenAI",
-        "tag": "🏆 Paid • GPT-4o & o3-mini Flagship",
+        "tag": "★ Paid • GPT-4o & o3-mini Flagship",
         "base_url": "https://api.openai.com/v1",
         "default_model": "gpt-4o-mini",
         "models": [
-            {"id": "gpt-4o-mini",              "desc": "🏆 Recommended • Fast, Intelligent & Cost-effective"},
-            {"id": "gpt-4o",                   "desc": "🔥 Primary Flagship • Top Accuracy & Multimodal"},
-            {"id": "o3-mini",                  "desc": "🧠 Specialized Reasoning • Math, Science & Deep Logic"},
-            {"id": "gpt-4.1-mini",             "desc": "⚡ Next-Gen • High Precision & Speed"},
+            {"id": "gpt-4o-mini",              "desc": "★ Recommended • Fast, Intelligent & Cost-effective"},
+            {"id": "gpt-4o",                   "desc": "▲ Primary Flagship • Top Accuracy & Multimodal"},
+            {"id": "o3-mini",                  "desc": "◈ Specialized Reasoning • Math, Science & Deep Logic"},
+            {"id": "gpt-4.1-mini",             "desc": "⌁ Next-Gen • High Precision & Speed"},
         ],
         "key_env": "OPENAI_API_KEY",
         "key_placeholder": "sk-proj-..."
     },
     "custom": {
         "name": "Custom / Ollama / LM Studio",
-        "tag": "🛠️  Custom Endpoint — Ollama, Local Models, etc",
+        "tag": "✱  Custom Endpoint — Ollama, Local Models, etc",
         "base_url": "http://localhost:11434/v1",
         "default_model": "qwen2.5:3b",
         "models": [
-            {"id": "qwen2.5-coder:3b-instruct", "desc": "💻 Qwen 2.5 Coder 3B Instruct • Dedicated Local Code Generation (Recommended)"},
-            {"id": "qwen2.5:3b",                "desc": "⚡ Qwen 2.5 3B • Ultra Fast Local General Chat"},
-            {"id": "qwen2.5-coder",             "desc": "💻 Qwen Coder • Dedicated Local Code Generation"},
-            {"id": "llama3",                    "desc": "🦙 Meta Llama 3 • General Purpose Local AI"},
-            {"id": "deepseek-r1",               "desc": "🧠 DeepSeek R1 Local • Offline Thinking & Reasoning"},
-            {"id": "phi3:mini",                 "desc": "⚡ Phi-3 Mini • Microsoft Lightweight Local"},
-            {"id": "mistral",                   "desc": "🇫🇷 Mistral Local • Fast & Lightweight"},
-            {"id": "custom",                    "desc": "🛠️ Custom Model Identifier (type with /cmodel <name>)"},
+            {"id": "qwen2.5-coder:3b-instruct", "desc": "▩ Qwen 2.5 Coder 3B Instruct • Dedicated Local Code Generation (Recommended)"},
+            {"id": "qwen2.5:3b",                "desc": "⌁ Qwen 2.5 3B • Ultra Fast Local General Chat"},
+            {"id": "qwen2.5-coder",             "desc": "▩ Qwen Coder • Dedicated Local Code Generation"},
+            {"id": "llama3",                    "desc": "◇ Meta Llama 3 • General Purpose Local AI"},
+            {"id": "deepseek-r1",               "desc": "◈ DeepSeek R1 Local • Offline Thinking & Reasoning"},
+            {"id": "phi3:mini",                 "desc": "⌁ Phi-3 Mini • Microsoft Lightweight Local"},
+            {"id": "mistral",                   "desc": "FR Mistral Local • Fast & Lightweight"},
+            {"id": "custom",                    "desc": "✱ Custom Model Identifier (type with /cmodel <name>)"},
         ],
         "key_env": "CUSTOM_API_KEY",
         "key_placeholder": "ollama / sk-or-..."
@@ -136,29 +134,7 @@ PROVIDER_CATALOG = {
 }
 
 
-def get_models_list(provider: str) -> list:
-    """Return list of dicts [{'id': '...', 'desc': '...'}, ...] for a provider.
-    For OpenRouter: pulls from the live Klyro Model Registry when available,
-    falling back to the static catalog seed list.
-    """
-    if provider == "openrouter":
-        try:
-            import openrouter_registry as or_reg
-            registry = or_reg.get_registry()
-            if registry._loaded and registry.all_models():
-                return registry.models_for_dropdown()
-        except Exception:
-            pass  # Fall through to static list
-
-    cat = PROVIDER_CATALOG.get(provider, {})
-    raw_models = cat.get("models", [])
-    normalized = []
-    for item in raw_models:
-        if isinstance(item, dict):
-            normalized.append(item)
-        elif isinstance(item, str):
-            normalized.append({"id": item, "desc": "Standard model"})
-    return normalized
+# get_models_list is defined as get_provider_models below (after get_available_providers)
 
 
 def get_model_ids(provider: str) -> list:
@@ -191,10 +167,20 @@ def get_available_providers() -> list:
 
 def get_provider_models(provider: str, force_refresh: bool = False) -> list[dict]:
     """
-    Get live models list for provider using LiveModelDiscovery,
+    Get live models list for provider using ModelCrawler and LiveModelDiscovery,
     filtering out any blacklisted dead models.
     Falls back to static PROVIDER_CATALOG if discovery is not available or fails.
     """
+    if not force_refresh:
+        try:
+            from core.model_crawler import get_model_crawler
+            crawler = get_model_crawler()
+            synced = crawler.get_synced_models(provider)
+            if synced:
+                return synced
+        except Exception:
+            pass
+
     try:
         from core.model_discovery import get_live_discovery
         discovered = get_live_discovery().get_models(provider, force_refresh=force_refresh)
@@ -223,23 +209,23 @@ def load_config() -> dict:
         "active_provider": "gemini",
         "active_models": {
             "gemini":     "gemini-3.6-flash",
-            "groq":       "openai/gpt-oss-120b",
-            "cerebras":   "gpt-oss-120b",
-            "openrouter": "z-ai/glm-5.2:free",
-            "mistral":    "mistral-small-latest",
+            "claude":     "claude-3-7-sonnet-20250219",
             "deepseek":   "deepseek-chat",
+            "groq":       "openai/gpt-oss-120b",
+            "openrouter": "z-ai/glm-5.2:free",
             "openai":     "gpt-4o-mini",
             "custom":     "llama3",
+            "cerebras":   "gpt-oss-120b",
         },
         "api_keys": {
             "gemini":     GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", ""),
-            "groq":       GROQ_API_KEY or os.getenv("GROQ_API_KEY", ""),
-            "cerebras":   os.getenv("CEREBRAS_API_KEY", ""),
-            "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
-            "mistral":    os.getenv("MISTRAL_API_KEY", ""),
+            "claude":     os.getenv("ANTHROPIC_API_KEY", os.getenv("CLAUDE_API_KEY", "")),
             "deepseek":   os.getenv("DEEPSEEK_API_KEY", ""),
+            "groq":       GROQ_API_KEY or os.getenv("GROQ_API_KEY", ""),
+            "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
             "openai":     os.getenv("OPENAI_API_KEY", ""),
             "custom":     os.getenv("CUSTOM_API_KEY", ""),
+            "cerebras":   os.getenv("CEREBRAS_API_KEY", ""),
         },
         "custom_base_url": "http://localhost:11434/v1"
     }
@@ -363,8 +349,8 @@ def validate_api_key_format(provider: str, key: str) -> tuple[bool, str]:
         return False, "Key terdeteksi sebagai placeholder atau dummy test value."
 
     if provider == "gemini":
-        if not (clean_key.startswith("AQ") or clean_key.startswith("AIza")):
-            return False, "Gemini API key harus diawali dengan 'AQ' atau 'AIza'."
+        if not clean_key.startswith("AQ"):
+            return False, "Gemini API key harus diawali dengan 'AQ'."
         if len(clean_key) < 25:
             return False, f"Gemini API key terlalu pendek ({len(clean_key)} karakter)."
     elif provider == "groq":
@@ -377,6 +363,11 @@ def validate_api_key_format(provider: str, key: str) -> tuple[bool, str]:
             return False, "OpenRouter API key harus diawali dengan 'sk-or-v1-'."
         if len(clean_key) < 35:
             return False, f"OpenRouter API key terlalu pendek ({len(clean_key)} karakter)."
+    elif provider in ("claude", "anthropic"):
+        if not clean_key.startswith("sk-ant-"):
+            return False, "Anthropic Claude API key harus diawali dengan 'sk-ant-'."
+        if len(clean_key) < 25:
+            return False, f"Anthropic Claude API key terlalu pendek ({len(clean_key)} karakter)."
     elif provider == "cerebras":
         if not clean_key.startswith("csk-"):
             return False, "Cerebras API key harus diawali dengan 'csk-'."
@@ -421,6 +412,19 @@ def probe_provider_key(provider: str, key: str, custom_url: Optional[str] = None
                 lat = (time.time() - t0) * 1000
                 if resp.status == 200:
                     return True, "Google Gemini credentials verified.", lat
+                return True, f"HTTP {resp.status}", lat
+        elif provider in ("claude", "anthropic"):
+            url = "https://api.anthropic.com/v1/models"
+            headers = {
+                "x-api-key": clean_key,
+                "anthropic-version": "2023-06-01",
+                "User-Agent": "KlyroCLI/Handshake"
+            }
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                lat = (time.time() - t0) * 1000
+                if resp.status == 200:
+                    return True, "Anthropic Claude credentials verified.", lat
                 return True, f"HTTP {resp.status}", lat
         else:
             cat = PROVIDER_CATALOG.get(provider, {})

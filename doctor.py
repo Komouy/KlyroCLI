@@ -27,7 +27,7 @@ if hasattr(sys.stderr, "reconfigure"):
         pass
 from theme import (
     RESET, BOLD, DIM,
-    FROST_CYAN, FROST_AQUA, FROST_MINT, FROST_CORAL,
+    FROST_CYAN, FROST_AQUA, FROST_MINT, FROST_CORAL, FROST_AMBER,
     FROST_ICE, FROST_WHITE, FROST_GRAY, FROST_DARK, FROST_INDIGO,
     badge, keycap
 )
@@ -71,7 +71,7 @@ def _box_width(design_width: int) -> int:
 
 def run_diagnostics(folder_aktif: str) -> dict:
     """Run full suite of self-diagnostics with live animated scan and print structured report."""
-    print(f"\n  {FROST_CYAN}{BOLD}🩺 Klyro System & Health Diagnostics{RESET}")
+    print(f"\n  {FROST_CYAN}{BOLD}✚ Klyro System & Health Diagnostics{RESET}")
     box_w = _box_width(66)
     print(f"  {FROST_DARK}╭{'─'*box_w}╮{RESET}")
 
@@ -167,11 +167,10 @@ def run_diagnostics(folder_aktif: str) -> dict:
 
     providers_to_test = [
         ("gemini",     "https://generativelanguage.googleapis.com"),
-        ("groq",       "https://api.groq.com/openai/v1/models"),
-        ("cerebras",   "https://api.cerebras.ai/v1/models"),
-        ("openrouter", "https://openrouter.ai/api/v1/models"),
-        ("mistral",    "https://api.mistral.ai/v1/models"),
+        ("claude",     "https://api.anthropic.com/v1/models"),
         ("deepseek",   "https://api.deepseek.com/models"),
+        ("groq",       "https://api.groq.com/openai/v1/models"),
+        ("openrouter", "https://openrouter.ai/api/v1/models"),
         ("openai",     "https://api.openai.com/v1/models"),
     ]
 
@@ -205,7 +204,7 @@ def run_diagnostics(folder_aktif: str) -> dict:
     if configured_count == 0:
         print(f"  {FROST_CORAL}⚠️  No AI API Keys configured yet! Type {BOLD}/provider{RESET}{FROST_CORAL} to setup Groq or Gemini.{RESET}\n")
     elif all_passed:
-        print(f"  {FROST_MINT}✨ All systems healthy! Ready for high-speed agentic coding.{RESET}\n")
+        print(f"  {FROST_MINT}✦ All systems healthy! Ready for high-speed agentic coding.{RESET}\n")
     else:
         print(f"  {FROST_CORAL}⚠️  Some issues were detected:{RESET}")
         for iss in issues:

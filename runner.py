@@ -703,7 +703,7 @@ def stop_server_process() -> dict:
                 running_process.terminate()
 
             running_process = None
-            process_logs.append("\n[Klyro Runner] 🛑 Server process stopped successfully.\n")
+            process_logs.append("\n[Klyro Runner] ⊘ Server process stopped successfully.\n")
             return {"success": True, "message": "Process stopped successfully."}
         except Exception as e:
             return {"success": False, "error": friendly("Could not stop the process", e)}

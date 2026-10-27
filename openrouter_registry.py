@@ -49,7 +49,7 @@ PINNED_FREE_MODELS = [
             "speed":      6,
         },
         "role":        "complex_coding",
-        "desc":        "🧠 GLM 5.2 Free • Complex Coding, Agent, Long-horizon Engineering",
+        "desc":        "◈ GLM 5.2 Free • Complex Coding, Agent, Long-horizon Engineering",
         "pinned":      True,
     },
     {
@@ -67,7 +67,7 @@ PINNED_FREE_MODELS = [
             "speed":      7,
         },
         "role":        "long_context_agent",
-        "desc":        "🌊 MiniMax M3 Free • 1M Context, Multimodal, Long-horizon Agent",
+        "desc":        "≋ MiniMax M3 Free • 1M Context, Multimodal, Long-horizon Agent",
         "pinned":      True,
     },
     {
@@ -85,7 +85,7 @@ PINNED_FREE_MODELS = [
             "speed":      4,
         },
         "role":        "heavy_reasoning",
-        "desc":        "🔥 Nemotron 3 Super Free • 120B, Multi-agent Reasoning",
+        "desc":        "▲ Nemotron 3 Super Free • 120B, Multi-agent Reasoning",
         "pinned":      True,
     },
     {
@@ -103,7 +103,7 @@ PINNED_FREE_MODELS = [
             "speed":      9,
         },
         "role":        "fallback",
-        "desc":        "🔄 OpenRouter Auto • Random best free model (simple fallback)",
+        "desc":        "↻ OpenRouter Auto • Random best free model (simple fallback)",
         "pinned":      True,
     },
 ]
@@ -377,7 +377,7 @@ def fetch_free_models(api_key: str = "") -> list:
             "structured": ("structured_outputs" in supported or "response_format" in supported),
             "capability": cap,
             "role":       role,
-            "desc":       f"🆓 {name} • {ctx // 1000}K ctx • {role}",
+            "desc":       f"⊙ {name} • {ctx // 1000}K ctx • {role}",
             "pinned":     False,
         })
 

@@ -2,8 +2,8 @@
 core/smart_router.py — Universal Workload-Based Smart Router & Resilient Fallback
 
 Classifies incoming user queries into 4 workload tiers (LIGHT, CODE, REASONING, HEAVY)
-and matches them against all actively configured AI providers (Gemini, Groq, Cerebras,
-OpenRouter, Mistral, DeepSeek, Custom/Ollama) to select the optimal model.
+and matches them against all actively configured AI providers (Gemini, Claude, Groq,
+DeepSeek, OpenRouter, OpenAI, Custom/Ollama) to select the optimal model.
 Provides automatic fallback cascades when rate limits (429) or quota errors occur.
 """
 
@@ -49,7 +49,10 @@ CODE_KEYWORDS = [
     "implement", "tambahkan fitur", "add feature", "refactor", "debug",
     "perbaiki error", "fix bug", "traceback", "syntax error", "unit test",
     "endpoint", "fungsi", "class", "metode", "method", "patch", "diff",
-    "tulis script", "write function", "buat class", "handler", "controller"
+    "tulis script", "write function", "buat class", "handler", "controller",
+    "koding", "coding", "code", "skrip", "script", "bikin script",
+    "bikin file", "bikin fungsi", "bikin class", "benerin", "syntaxerror",
+    "typeerror", "valueerror", "indexerror", "nullpointer"
 ]
 
 
@@ -76,7 +79,14 @@ def classify_workload(prompt: str, context_chars: int = 0, file_count: int = 0) 
         return WorkloadTier.REASONING, "Deep logic / algorithmic reasoning requested"
 
     # 3. Standard coding check
-    if any(kw in q for kw in CODE_KEYWORDS) or n_words > 35:
+    has_code_syntax = (
+        "```" in prompt or
+        bool(re.search(r"\b(def|class|import|const|function|var|return|SELECT|FROM)\b", prompt)) or
+        bool(re.search(r"\b\w+\.(py|js|ts|html|css|json|sql|go|rs|java|cpp|c|sh|bat)\b", q)) or
+        bool(re.search(r"\b(error|exception|traceback|bug|crash|segfault)\b", q))
+    )
+
+    if any(kw in q for kw in CODE_KEYWORDS) or has_code_syntax or (n_words > 35 and not any(g in q for g in ["halo", "hai", "jelaskan", "apa itu", "ceritakan", "terima kasih"])):
         return WorkloadTier.CODE, "Code implementation / debugging requested"
 
     # 4. Light / Fast query
@@ -90,40 +100,90 @@ def classify_workload(prompt: str, context_chars: int = 0, file_count: int = 0) 
 TIER_PROVIDER_PREFERENCES: Dict[WorkloadTier, List[Dict[str, Any]]] = {
     WorkloadTier.LIGHT: [
         {"provider": "groq",       "model": "openai/gpt-oss-20b",       "label": "Groq LPU (~500 tok/s)"},
-        {"provider": "cerebras",   "model": "llama3.1-8b",              "label": "Cerebras Wafer (Ultra Fast)"},
+        {"provider": "claude",     "model": "claude-3-5-haiku-20241022","label": "Claude 3.5 Haiku (Ultra Fast)"},
         {"provider": "gemini",     "model": "gemini-3.5-flash-lite",    "label": "Gemini Flash Lite"},
-        {"provider": "mistral",    "model": "mistral-small-latest",     "label": "Mistral Small"},
         {"provider": "openrouter", "model": "openrouter/auto",          "label": "OpenRouter Auto Free"},
         {"provider": "deepseek",   "model": "deepseek-v4-flash",        "label": "DeepSeek Flash"},
+        {"provider": "openai",     "model": "gpt-4o-mini",              "label": "OpenAI GPT-4o Mini"},
         {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
     ],
     WorkloadTier.CODE: [
         {"provider": "groq",       "model": "openai/gpt-oss-120b",      "label": "Groq Flagship 120B"},
-        {"provider": "mistral",    "model": "codestral-latest",         "label": "Mistral Codestral (Coding Specialist)"},
         {"provider": "openrouter", "model": "z-ai/glm-5.2:free",        "label": "OpenRouter GLM 5.2 Free"},
         {"provider": "deepseek",   "model": "deepseek-chat",            "label": "DeepSeek V3 (Top-tier Coding)"},
+        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219","label": "Claude 3.7 Sonnet (Top-tier Coding)"},
         {"provider": "gemini",     "model": "gemini-3.6-flash",         "label": "Gemini 3.6 Flash"},
-        {"provider": "cerebras",   "model": "gpt-oss-120b",             "label": "Cerebras 120B"},
+        {"provider": "openai",     "model": "gpt-4o",                   "label": "OpenAI GPT-4o"},
         {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
     ],
     WorkloadTier.REASONING: [
         {"provider": "deepseek",   "model": "deepseek-reasoner",        "label": "DeepSeek R1 (Thinking Mode)"},
         {"provider": "openrouter", "model": "nvidia/nemotron-3-super-120b-a12b:free", "label": "Nemotron 3 Super (Reasoning)"},
+        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219","label": "Claude 3.7 Sonnet (Hybrid Reasoning)"},
         {"provider": "gemini",     "model": "gemini-3.1-pro-preview",   "label": "Gemini 3.1 Pro (Complex Logic)"},
         {"provider": "groq",       "model": "qwen/qwen3.8-27b",         "label": "Groq Qwen 27B Logic"},
-        {"provider": "mistral",    "model": "mistral-large-latest",     "label": "Mistral Large"},
-        {"provider": "cerebras",   "model": "gpt-oss-120b",             "label": "Cerebras 120B"},
+        {"provider": "openai",     "model": "o3-mini",                  "label": "OpenAI o3-mini (Reasoning)"},
         {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
     ],
     WorkloadTier.HEAVY: [
         {"provider": "gemini",     "model": "gemini-3.6-flash",         "label": "Gemini 3.6 (1M Token Context)"},
         {"provider": "openrouter", "model": "minimax/minimax-m3:free",  "label": "MiniMax M3 Free (1M Context)"},
+        {"provider": "claude",     "model": "claude-3-7-sonnet-20250219","label": "Claude 3.7 Sonnet (200K Context)"},
         {"provider": "deepseek",   "model": "deepseek-chat",            "label": "DeepSeek Chat (64K Context)"},
-        {"provider": "mistral",    "model": "mistral-small-latest",     "label": "Mistral Small"},
         {"provider": "groq",       "model": "openai/gpt-oss-120b",      "label": "Groq 120B"},
-        {"provider": "cerebras",   "model": "gpt-oss-120b",             "label": "Cerebras 120B"},
+        {"provider": "openai",     "model": "gpt-4o",                   "label": "OpenAI GPT-4o"},
         {"provider": "custom",     "model": None,                       "label": "Local Ollama"},
     ],
+}
+
+
+# ─────────────────────────────────────────────────────────────────
+# INTRA-PROVIDER TIER PREFERENCES (Copilot Mode for Active Provider)
+# ─────────────────────────────────────────────────────────────────
+
+PROVIDER_TIER_PREFERENCES: Dict[str, Dict[WorkloadTier, List[str]]] = {
+    "gemini": {
+        WorkloadTier.LIGHT: ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-2.0-flash"],
+        WorkloadTier.CODE: ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"],
+        WorkloadTier.REASONING: ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.1-pro-preview", "gemini-2.5-pro"],
+        WorkloadTier.HEAVY: ["gemini-4-argon", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-pro"],
+    },
+    "claude": {
+        WorkloadTier.LIGHT: ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"],
+        WorkloadTier.CODE: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022"],
+        WorkloadTier.REASONING: ["claude-3-7-sonnet-20250219", "claude-3-opus-20240229"],
+        WorkloadTier.HEAVY: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022"],
+    },
+    "groq": {
+        WorkloadTier.LIGHT: ["llama-3.1-8b-instant", "openai/gpt-oss-20b", "groq/compound-mini"],
+        WorkloadTier.CODE: ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "groq/compound"],
+        WorkloadTier.REASONING: ["deepseek-r1-distill-llama-70b", "qwen/qwen3.8-27b", "qwen-qwq-32b"],
+        WorkloadTier.HEAVY: ["mixtral-8x7b-32768", "llama-3.3-70b-versatile", "openai/gpt-oss-120b"],
+    },
+    "deepseek": {
+        WorkloadTier.LIGHT: ["deepseek-chat"],
+        WorkloadTier.CODE: ["deepseek-chat"],
+        WorkloadTier.REASONING: ["deepseek-reasoner"],
+        WorkloadTier.HEAVY: ["deepseek-chat"],
+    },
+    "openai": {
+        WorkloadTier.LIGHT: ["gpt-4o-mini"],
+        WorkloadTier.CODE: ["gpt-4o", "gpt-4o-mini"],
+        WorkloadTier.REASONING: ["o1-mini", "o3-mini", "gpt-4o"],
+        WorkloadTier.HEAVY: ["gpt-4o"],
+    },
+    "openrouter": {
+        WorkloadTier.LIGHT: ["openrouter/auto", "meta-llama/llama-3.1-8b-instruct:free"],
+        WorkloadTier.CODE: ["z-ai/glm-5.2:free", "mistralai/codestral-2501:free"],
+        WorkloadTier.REASONING: ["deepseek/deepseek-r1:free", "nvidia/nemotron-3-super-120b-a12b:free"],
+        WorkloadTier.HEAVY: ["minimax/minimax-m3:free", "google/gemini-2.0-flash-exp:free"],
+    },
+    "custom": {
+        WorkloadTier.LIGHT: [],
+        WorkloadTier.CODE: [],
+        WorkloadTier.REASONING: [],
+        WorkloadTier.HEAVY: [],
+    }
 }
 
 
@@ -164,6 +224,7 @@ class SmartRouter:
         file_count: int = 0,
         exclude_providers: Optional[List[str]] = None,
         manual_override: Optional[str] = None,
+        manual_model: Optional[str] = None,
     ) -> Tuple[str, str, str, WorkloadTier]:
         """
         Determines the best provider and model for a given prompt and context.
@@ -173,11 +234,33 @@ class SmartRouter:
         tier, tier_reason = classify_workload(prompt, context_chars, file_count)
         configured = self.get_configured_providers()
 
+        try:
+            from core.model_discovery import get_dead_model_manager
+            dead_mgr = get_dead_model_manager()
+        except Exception:
+            dead_mgr = None
+
         # If user has a manual override / locked provider and it's configured
         if manual_override and manual_override in configured:
             active_cat = provider_manager.PROVIDER_CATALOG.get(manual_override, {})
-            model = provider_manager.load_config().get("active_models", {}).get(manual_override, active_cat.get("default_model", ""))
-            return manual_override, model, f"Manual Override ({active_cat.get('name', manual_override)})", tier
+            current_model_cfg = manual_model or provider_manager.load_config().get("active_models", {}).get(manual_override, active_cat.get("default_model", ""))
+
+            # Provider-scoped Copilot auto-routing if model is set to "auto"
+            if current_model_cfg and current_model_cfg.lower() in ("auto", "copilot", "default"):
+                candidates = PROVIDER_TIER_PREFERENCES.get(manual_override, {}).get(tier, [])
+                chosen_model = None
+                for cand in candidates:
+                    if dead_mgr and dead_mgr.is_dead(manual_override, cand):
+                        continue
+                    chosen_model = cand
+                    break
+                if not chosen_model:
+                    chosen_model = active_cat.get("default_model", "")
+                prov_name = active_cat.get("name", manual_override.upper())
+                reason = f"[Auto • {prov_name} ({tier.value})] {tier_reason}"
+                return manual_override, chosen_model, reason, tier
+
+            return manual_override, current_model_cfg, f"Manual Override ({active_cat.get('name', manual_override)})", tier
 
         excludes = set(exclude_providers or []) | self._temp_excluded_providers
         try:
@@ -191,12 +274,10 @@ class SmartRouter:
         for pref in candidates:
             prov = pref["provider"]
             if prov in configured and prov not in excludes:
-                # If context is large (>35k chars), avoid tight-TPM providers (groq, cerebras)
-                # if a large-context provider is also configured and ready
                 if context_chars > 35_000 and prov in ("groq", "cerebras"):
                     has_large_cap = any(
                         p in configured and p not in excludes
-                        for p in ("gemini", "openrouter", "deepseek", "mistral")
+                        for p in ("gemini", "claude", "openrouter", "deepseek")
                     )
                     if has_large_cap:
                         continue

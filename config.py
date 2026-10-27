@@ -18,21 +18,21 @@ MODEL_BESAR = "gemini-3.6-flash"        # Lebih kuat, untuk proyek menengah/besa
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # Model Groq default
-GROQ_MODEL_CEPAT  = "groq/compound-mini"    # ⚡ Default — ringan & cepat
-GROQ_MODEL_PINTAR = "openai/gpt-oss-120b"   # 🧠 Paling kuat — GPT open-source 120B
+GROQ_MODEL_CEPAT  = "groq/compound-mini"    # ⌁ Default — ringan & cepat
+GROQ_MODEL_PINTAR = "openai/gpt-oss-120b"   # ◈ Paling kuat — GPT open-source 120B
 
 # Katalog semua model Groq yang tersedia (untuk dropdown UI)
 GROQ_MODELS_CATALOG = [
     # ── Chat Models ────────────────────────────────────────────
-    { "id": "openai/gpt-oss-120b",  "label": "GPT OSS 120B",     "tag": "🏆 Terkuat",  "group": "OpenAI OSS" },
-    { "id": "openai/gpt-oss-20b",   "label": "GPT OSS 20B",      "tag": "⚡ Cepat",    "group": "OpenAI OSS" },
-    { "id": "groq/compound",        "label": "Groq Compound",     "tag": "🔥 Flagship", "group": "Groq"       },
-    { "id": "groq/compound-mini",   "label": "Groq Compound Mini","tag": "⚡ Ringan",   "group": "Groq"       },
-    { "id": "qwen/qwen3.8-27b",     "label": "Qwen3 27B (v8)",   "tag": "🧠 Akurat",   "group": "Qwen"       },
-    { "id": "qwen/qwen3.6-27b",     "label": "Qwen3 27B (v6)",   "tag": "🧠 Akurat",   "group": "Qwen"       },
-    { "id": "allam-2-7b",           "label": "Allam 2 7B",       "tag": "🌍 Arabic",   "group": "Other"      },
+    { "id": "openai/gpt-oss-120b",  "label": "GPT OSS 120B",     "tag": "★ Terkuat",  "group": "OpenAI OSS" },
+    { "id": "openai/gpt-oss-20b",   "label": "GPT OSS 20B",      "tag": "⌁ Cepat",    "group": "OpenAI OSS" },
+    { "id": "groq/compound",        "label": "Groq Compound",     "tag": "▲ Flagship", "group": "Groq"       },
+    { "id": "groq/compound-mini",   "label": "Groq Compound Mini","tag": "⌁ Ringan",   "group": "Groq"       },
+    { "id": "qwen/qwen3.8-27b",     "label": "Qwen3 27B (v8)",   "tag": "◈ Akurat",   "group": "Qwen"       },
+    { "id": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B",  "tag": "★ Flagship", "group": "Meta"      },
+    { "id": "llama-3.1-8b-instant",    "label": "Llama 3.1 8B",   "tag": "⌁ Cepat",    "group": "Meta"      },
     # ── Audio Models (tidak untuk chat) ────────────────────────
-    # { "id": "whisper-large-v3",      "label": "Whisper v3",     "tag": "🎤 Audio" },
+    # { "id": "whisper-large-v3",      "label": "Whisper v3",     "tag": "♫ Audio" },
 ]
 
 # Batas konteks Groq — dinaikkan dari 8_000. Nilai lama itu jauh lebih kecil
@@ -70,8 +70,10 @@ EKSTENSI_DIIZINKAN = {
 
 FOLDER_DIABAIKAN = {
     ".git", ".github", "__pycache__", "node_modules",
-    ".venv", "venv", "env", ".idea", ".vscode", "dist", "build",
+    ".venv", "venv", "env", ".env", ".virtualenvs", ".idea", ".vscode", "dist", "build", "target",
     "AppData", "Application Data", ".gemini", ".cache", ".npm", ".cargo",
+    "OneDrive", "OneDrive - Personal", ".gradle", ".m2", ".android",
     "Music", "Videos", "Pictures", "Searches", "Contacts", "Saved Games",
-    "Links", "Favorites", ".matplotlib", ".dotnet", ".nuget"
+    "Links", "Favorites", ".matplotlib", ".dotnet", ".nuget",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache"
 }

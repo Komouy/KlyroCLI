@@ -118,12 +118,18 @@ def run_provider_wizard(ai_assistant):
     model_ids = [m["id"] for m in models]
     current_model = cfg.get("active_models", {}).get(provider_id, prov["default_model"])
 
-    options_model = []
-    default_model_idx = 0
+    options_model = [
+        {
+            "label": "◈ Auto / Smart Routing",
+            "description": "▲ Copilot Mode • Auto: small model for chat, large for coding"
+        }
+    ]
+    is_auto = (current_model or "").lower() in ("auto", "copilot", "default")
+    default_model_idx = 0 if is_auto else 0
     for i, m in enumerate(models):
         m_id = m["id"]
-        if m_id == current_model:
-            default_model_idx = i
+        if not is_auto and m_id == current_model:
+            default_model_idx = i + 1
         options_model.append({
             "label": m_id,
             "description": m["desc"]
@@ -132,8 +138,10 @@ def run_provider_wizard(ai_assistant):
     model_idx = interactive_select(f"Select Model for {prov['name']}", options_model, default_model_idx)
     if model_idx == -1:
         chosen_model = current_model
+    elif model_idx == 0:
+        chosen_model = "auto"
     else:
-        chosen_model = model_ids[model_idx]
+        chosen_model = model_ids[model_idx - 1]
 
     # ── Apply & Switch ────────────────────────────────────────────────
     ok, msg = provider_manager.set_active_provider(provider_id, chosen_model, custom_url)
@@ -143,7 +151,8 @@ def run_provider_wizard(ai_assistant):
         BAR = f"{FROST_DARK}│{RESET}"
         print(f"\n  {BAR}  {FROST_MINT}✓{RESET} {FROST_GRAY}Provider switched{RESET}")
         print(f"  {BAR}  {FROST_GHOST}engine{RESET}  {FROST_INDIGO}{prov_label}{RESET}")
-        print(f"  {BAR}  {FROST_GHOST}model {RESET}  {FROST_GRAY}{chosen_model}{RESET}")
+        model_display = "Auto / Smart Routing (Copilot Mode)" if chosen_model == "auto" else chosen_model
+        print(f"  {BAR}  {FROST_GHOST}model {RESET}  {FROST_GRAY}{model_display}{RESET}")
 
         # Live Handshake Probe
         if existing_key or provider_id == "custom":

@@ -394,8 +394,12 @@ print(f"{'🎉 ALL TESTS PASSED!' if FAIL == 0 else f'⚠️  {FAIL} TEST(S) FAI
 print(f"Results: {PASS}/{total} passed")
 print(f"{'=' * 60}")
 
-if failures:
-    print("\nFailed tests:")
-    for f in failures:
-        print(f"  ✗ {f}")
-    sys.exit(1)
+def test_openrouter_full_suite():
+    assert FAIL == 0, f"Failures: {failures}"
+
+if __name__ == "__main__":
+    if failures:
+        print("\nFailed tests:")
+        for f in failures:
+            print(f"  ✗ {f}")
+        sys.exit(1)

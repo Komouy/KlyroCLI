@@ -22,10 +22,10 @@
 
 ## 🌟 Overview & Key Features
 
-KlyroCLI is a terminal-native AI pair programmer that can read your entire workspace, edit files with unified visual diffs, execute shell commands, manage directories, and switch seamlessly across **8 major AI providers**.
+KlyroCLI is a terminal-native AI pair programmer that can read your entire workspace, edit files with unified visual diffs, execute shell commands, manage directories, and switch seamlessly across **7 major AI providers**.
 
 - 🎨 **Nordic Frost Aesthetics**: Clean, modern ANSI color palette with live spinners and real-time streaming.
-- ⚡ **Multi-Provider Engine**: Google Gemini, Groq LPU, Cerebras, OpenRouter (Free), Mistral AI, DeepSeek, OpenAI, and Local Ollama.
+- ⚡ **Multi-Provider Engine**: Google Gemini, Anthropic Claude, Groq LPU, DeepSeek, OpenRouter (Free), OpenAI, and Local Ollama.
 - ⌨️ **Interactive Slash Autocomplete**: Type `/` to see instant command suggestions, keyboard navigation, and inline descriptions.
 - 📎 **Smart File Mention (`@filename`)**: Pin exact file contents directly into AI context with `@` autocomplete just like Claude Code & Cursor.
 - 🔄 **Universal Auto-Fallback**: Never get blocked if an API quota runs out — Klyro automatically failovers to the next available provider.
@@ -86,6 +86,7 @@ You will see the Nordic Frost startup banner:
 | :--- | :--- | :--- |
 | `/help` | `/?`, `/h` | Displays the interactive help menu with all commands |
 | `/doctor` | `/doc` | Runs comprehensive system, API, network, and security diagnostics |
+| `/docs [topic]` | `/guide` | Opens the built-in documentation viewer (topics: `quickstart`, `commands`, `features`, `providers`, `tips`, `all`; `/docs help` lists them) |
 | `/provider` | `/setup`, `/p` | Opens interactive wizard to switch AI providers & set API keys |
 | `/cmodel [name\|num]` | `/model`, `/m` | Lists models with recommendations or switches active model |
 | `/usage` | `/stat`, `/stats` | Displays session uptime, total tokens, latency, speed (tok/s), and costs |
@@ -124,21 +125,18 @@ To configure or change your AI engine, type:
 3. **OpenRouter** *(300+ Free Models)*:
    - **Key Source:** [openrouter.ai](https://openrouter.ai) *(No CC required)*
    - **Models:** `meta-llama/llama-3.3-70b-instruct:free`, `google/gemma-3-27b-it:free`, `openrouter/free`
-4. **Mistral AI** *(Experiment Tier)*:
-   - **Key Source:** [console.mistral.ai](https://console.mistral.ai)
-   - **Models:** `mistral-small-latest`, `codestral-latest` (Coding Specialist)
-5. **Cerebras**:
-   - **Key Source:** [cloud.cerebras.ai](https://cloud.cerebras.ai)
-   - **Models:** `gpt-oss-120b`, `gemma-4-31b`, `llama-3.3-70b`
-6. **DeepSeek**:
+4. **Anthropic Claude**:
+   - **Key Source:** [console.anthropic.com](https://console.anthropic.com)
+   - **Models:** `claude-3-7-sonnet-20250219` (Hybrid Reasoning), `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`
+5. **DeepSeek**:
    - **Key Source:** [platform.deepseek.com](https://platform.deepseek.com)
    - **Models:** `deepseek-chat` (V3), `deepseek-reasoner` (R1 Thinking Mode)
-7. **OpenAI**:
+6. **OpenAI**:
    - **Key Source:** [platform.openai.com](https://platform.openai.com)
    - **Models:** `gpt-4o-mini`, `gpt-4o`, `o3-mini`
-8. **Custom / Local Ollama**:
+7. **Custom / Local Ollama**:
    - **Endpoint:** `http://localhost:11434/v1` *(No API key required)*
-   - **Models:** `llama3`, `qwen2.5-coder`, `deepseek-r1`, `mistral`
+   - **Models:** `llama3`, `qwen2.5-coder`, `deepseek-r1`
 
 ---
 

@@ -6,19 +6,17 @@
     "deepseek": "deepseek-chat",
     "openai": "gpt-4o-mini",
     "custom": "qwen2.5-coder-slim",
-    "cerebras": "llama3.1-8b",
-    "openrouter": "openrouter/free",
-    "mistral": "mistral-small-latest"
+    "claude": "claude-3-7-sonnet-20250219",
+    "openrouter": "openrouter/free"
   },
   "api_keys": {
     "gemini": "",
-    "groq": "",
+    "claude": "",
     "deepseek": "",
+    "groq": "",
     "openai": "",
     "custom": "",
-    "cerebras": "",
-    "openrouter": "",
-    "mistral": ""
+    "openrouter": ""
   },
   "custom_base_url": "http://localhost:11434/v1"
 }

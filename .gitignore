@@ -29,6 +29,8 @@ Thumbs.db
 debug-klyro.log
 debug-*.log
 *.log
+audit_report.txt
+audit_*.txt
 
 # Virtual environments & test cache
 .venv/

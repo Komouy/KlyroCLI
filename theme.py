@@ -311,8 +311,8 @@ def get_git_branch(cwd: str = ".") -> str:
         )
         dirty_count = len(status_res.stdout.strip().splitlines()) if status_res.stdout.strip() else 0
         if dirty_count > 0:
-            return f"🌿 {branch} *{dirty_count}"
-        return f"🌿 {branch}"
+            return f"❋ {branch} *{dirty_count}"
+        return f"❋ {branch}"
     except Exception:
         return ""
 
@@ -407,7 +407,7 @@ class UI:
     @staticmethod
     def step(action: str, target: str):
         """Renders action step like starting a background process."""
-        print(f"  {FROST_CYAN}⚡{RESET} {FROST_GRAY}{action}:{RESET} {FROST_WHITE}{target}{RESET}")
+        print(f"  {FROST_CYAN}⌁{RESET} {FROST_GRAY}{action}:{RESET} {FROST_WHITE}{target}{RESET}")
 
     # --- FRAMED COMPONENT CARDS ---
     @staticmethod

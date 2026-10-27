@@ -21,10 +21,12 @@ except ImportError:
 
 SLASH_COMMANDS = [
     ("/help",     "Show all available commands"),
+    ("/docs",     "Browse built-in documentation & user guide"),
     ("/doctor",   "Run system, API & network diagnostics"),
     ("/provider", "Setup AI provider & API key"),
     ("/cmodel",   "List or switch active model"),
     ("/model",    "Alias for /cmodel (switch active model)"),
+    ("/sync-models", "Sync official models from provider docs"),
     ("/registry", "View or refresh OpenRouter Model Registry"),
     ("/commit",   "Auto-generate AI commit message & commit"),
     ("/consensus","Toggle multi-model consensus mode"),
@@ -40,6 +42,8 @@ SLASH_COMMANDS = [
     ("/symbols",  "Find functions/classes by name across project"),
     ("/run",      "Run project or shell command"),
     ("/diff",     "Show git status and diff"),
+    ("/undo",     "Revert last AI file modifications"),
+    ("/copy",     "Copy last AI code or response to clipboard"),
     ("/clear",    "Clear terminal & reset conversation"),
     ("/cd",       "Change active project directory"),
     ("/exit",     "Exit Klyro Code"),
@@ -50,6 +54,7 @@ SLASH_COMMANDS = [
     ("/p",        "Alias for /provider"),
     ("/m",        "Alias for /cmodel"),
     ("/u",        "Alias for /undo"),
+    ("/cp",       "Alias for /copy"),
     ("/stat",     "Alias for /usage"),
 ]
 
@@ -105,7 +110,45 @@ if PROMPT_TOOLKIT_AVAILABLE:
                         )
                 return
 
-            # ── @filename → workspace file autocomplete ───────────────
+            # ── /copy or /cp subcommands ─────────────────────────────
+            if lowered.startswith(("/copy ", "/cp ")):
+                prefix = lowered.split(maxsplit=1)[1] if " " in lowered else ""
+                subcmds = [
+                    ("code", "Salin blok kode AI terakhir"),
+                    ("all",  "Salin seluruh respons AI terakhir"),
+                ]
+                for sc, desc in subcmds:
+                    if sc.startswith(prefix):
+                        display = HTML(f"<b>{sc}</b>  <ansigray>{desc}</ansigray>")
+                        yield Completion(
+                            sc,
+                            start_position=-len(prefix),
+                            display=display,
+                        )
+                return
+            # ── /docs or /guide subcommands (documentation topics) ───
+            if lowered.startswith(("/docs ", "/guide ", "/manual ")):
+                prefix = lowered.split(maxsplit=1)[1] if " " in lowered else ""
+                subcmds = [
+                    ("quickstart", "Panduan cepat, @file mention & diff approval"),
+                    ("commands",   "Referensi lengkap semua slash commands"),
+                    ("features",   "Smart Router, consensus, undo & copy"),
+                    ("providers",  "Setup provider & daftar model gratis"),
+                    ("tips",       "Pintasan keyboard & tips produktivitas"),
+                    ("all",        "Tampilkan seluruh dokumentasi"),
+                    ("help",       "Daftar topik dokumentasi yang tersedia"),
+                ]
+                for sc, desc in subcmds:
+                    if sc.startswith(prefix):
+                        safe_desc = desc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        display = HTML(f"<b>{sc}</b>  <ansigray>{safe_desc}</ansigray>")
+                        yield Completion(
+                            sc,
+                            start_position=-len(prefix),
+                            display=display,
+                        )
+                return
+
             at_idx = text.rfind("@")
             if at_idx != -1:
                 if at_idx == 0 or text[at_idx - 1] in " \t([{":

@@ -178,9 +178,9 @@ def test_api_key_sanitization(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         fake_config = os.path.join(tmpdir, "klyro_config.json")
         monkeypatch.setattr(provider_manager, "CONFIG_FILE", fake_config)
-        provider_manager.set_api_key("gemini", "  AIzaSyCleanKey123 \n\t")
+        provider_manager.set_api_key("gemini", "  AQ.CleanKey123 \n\t")
         clean = provider_manager.get_api_key("gemini")
-        assert clean == "AIzaSyCleanKey123"
+        assert clean == "AQ.CleanKey123"
 
 
 def test_ollama_probe_graceful_handling():
@@ -421,9 +421,10 @@ def test_validate_api_key_format_valid():
     ok, _ = provider_manager.validate_api_key_format("gemini", "AQ" + "A" * 33)
     assert ok is True
 
-    # Legacy Gemini key starting with AIzaSy
-    ok, _ = provider_manager.validate_api_key_format("gemini", "AIzaSy" + "A" * 33)
-    assert ok is True
+    # Gemini key starting with AIzaSy is rejected (only AQ is allowed)
+    ok, msg = provider_manager.validate_api_key_format("gemini", "AIzaSy" + "A" * 33)
+    assert ok is False
+    assert "AQ" in msg
 
     ok, _ = provider_manager.validate_api_key_format("groq", "gsk_" + "B" * 38)
     assert ok is True
@@ -434,6 +435,12 @@ def test_validate_api_key_format_valid():
     ok, _ = provider_manager.validate_api_key_format("cerebras", "csk-" + "D" * 25)
     assert ok is True
 
+    ok, _ = provider_manager.validate_api_key_format("claude", "sk-ant-" + "E" * 30)
+    assert ok is True
+
+    ok, _ = provider_manager.validate_api_key_format("deepseek", "sk-" + "F" * 30)
+    assert ok is True
+
     ok, _ = provider_manager.validate_api_key_format("custom", "anything")
     assert ok is True
 
@@ -442,7 +449,7 @@ def test_validate_api_key_format_rejects_dummies_and_mismatches():
     # Rejects dummy values
     ok, msg = provider_manager.validate_api_key_format("gemini", "AIzaSyCleanKey123")
     assert ok is False
-    assert "dummy" in msg or "placeholder" in msg
+    assert "dummy" in msg or "placeholder" in msg or "AQ" in msg
 
     ok, msg = provider_manager.validate_api_key_format("groq", "your_api_key_here")
     assert ok is False
@@ -451,7 +458,7 @@ def test_validate_api_key_format_rejects_dummies_and_mismatches():
     # Rejects prefix mismatch
     ok, msg = provider_manager.validate_api_key_format("gemini", "gsk_12345678901234567890123456789012345")
     assert ok is False
-    assert "AQ" in msg or "AIza" in msg
+    assert "AQ" in msg
 
     # Rejects empty or whitespace
     ok, msg = provider_manager.validate_api_key_format("gemini", "   ")
@@ -470,7 +477,7 @@ def test_probe_provider_key_mock(monkeypatch):
 
     # Success mock
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=3.5: MockResponse())
-    ok, msg, lat = provider_manager.probe_provider_key("gemini", "AIzaSy" + "X" * 33)
+    ok, msg, lat = provider_manager.probe_provider_key("gemini", "AQ." + "X" * 33)
     assert ok is True
     assert "verified" in msg.lower()
     assert lat >= 0
@@ -480,7 +487,7 @@ def test_probe_provider_key_mock(monkeypatch):
         raise urllib.error.HTTPError("url", 400, "Bad Request", {}, None)
 
     monkeypatch.setattr(urllib.request, "urlopen", mock_fail)
-    ok, msg, _ = provider_manager.probe_provider_key("gemini", "AIzaSy" + "X" * 33)
+    ok, msg, _ = provider_manager.probe_provider_key("gemini", "AQ." + "X" * 33)
     assert ok is False
     assert "400" in msg or "ditolak" in msg.lower()
 

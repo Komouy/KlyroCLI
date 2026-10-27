@@ -204,7 +204,7 @@ def check_ollama_preflight(ai_assistant) -> bool:
         return True
 
     from theme import RESET, BOLD, FROST_CORAL, FROST_AMBER, FROST_DARK, FROST_CYAN
-    print(f"\n  {FROST_CORAL}{BOLD}⚡ Ollama Pre-flight Check Failed{RESET}")
+    print(f"\n  {FROST_CORAL}{BOLD}⌁ Ollama Pre-flight Check Failed{RESET}")
     print(f"  {FROST_DARK}{msg}{RESET}")
     print(f"  {FROST_AMBER}Fix: run {FROST_CYAN}ollama serve{FROST_AMBER} in another terminal, then retry.{RESET}")
     print(f"  {FROST_DARK}Or switch provider with {FROST_CYAN}/provider{FROST_DARK}.{RESET}\n")

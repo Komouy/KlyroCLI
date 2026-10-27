@@ -15,13 +15,16 @@ COMMON_SLASH_ALIASES = {
     "/stat": "/usage",
     "/stats": "/usage",
     "/doc": "/doctor",
+    "/cp": "/copy",
+    "/sync": "/sync-models",
 }
 
 ALL_KNOWN_COMMANDS = [
     "/help", "/doctor", "/provider", "/setup", "/cmodel", "/model",
     "/registry", "/consensus", "/clear", "/usage", "/history",
     "/files", "/tree", "/find", "/symbols", "/diff", "/commit",
-    "/run", "/undo", "/todo", "/cd", "/exit", "/quit"
+    "/run", "/undo", "/todo", "/copy", "/cd", "/exit", "/quit",
+    "/router", "/think", "/docs", "/guide", "/sync-models"
 ]
 
 

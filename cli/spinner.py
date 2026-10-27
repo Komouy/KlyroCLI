@@ -228,7 +228,9 @@ def print_banner(folder_path, ai_assistant):
     import sys as _sys
 
     folder_name = os.path.basename(os.path.abspath(folder_path)) or folder_path
-    files = file_manager.list_daftar_file(folder_path)
+    files = getattr(ai_assistant, "daftar_file", None)
+    if files is None:
+        files = file_manager.list_daftar_file(folder_path)
     provider_name = provider_manager.PROVIDER_CATALOG.get(
         ai_assistant.provider, {}
     ).get("name", ai_assistant.provider.upper())
@@ -271,11 +273,11 @@ def print_banner(folder_path, ai_assistant):
 
     # ── WORKSPACE ──
     add_line(divider_row("WORKSPACE"), structural=True)
-    add_line(row(f"{FROST_GHOST}📁 folder   {RESET}{FROST_WHITE}{BOLD}{folder_name}{RESET}"))
-    add_line(row(f"{FROST_GHOST}📄 files    {RESET}{FROST_CYAN}{BOLD}{len(files)}{RESET}{FROST_DARK} files indexed{RESET}"))
+    add_line(row(f"{FROST_GHOST}▣ folder   {RESET}{FROST_WHITE}{BOLD}{folder_name}{RESET}"))
+    add_line(row(f"{FROST_GHOST}▭ files    {RESET}{FROST_CYAN}{BOLD}{len(files)}{RESET}{FROST_DARK} files indexed{RESET}"))
     if git_branch:
         branch_color = FROST_AMBER if "*" in git_branch else FROST_MINT
-        add_line(row(f"{FROST_GHOST}🌿 git      {RESET}{branch_color}{git_branch}{RESET}"))
+        add_line(row(f"{FROST_GHOST}❋ git      {RESET}{branch_color}{git_branch}{RESET}"))
 
     # ── AI ENGINE ──
     add_line(divider_row("AI ENGINE"), structural=True)
@@ -284,23 +286,9 @@ def print_banner(folder_path, ai_assistant):
         if has_key else
         f"{FROST_AMBER}○ key missing  {FROST_DARK}/provider{RESET}"
     )
-    add_line(row(f"{FROST_GHOST}🤖 provider {RESET}{FROST_INDIGO}{BOLD}{provider_name}{RESET}  {key_status}"))
-    add_line(row(f"{FROST_GHOST}⚡ model    {RESET}{FROST_ICE}{model_short}{RESET}"))
-    add_line(row(f"{FROST_GHOST}🐍 runtime  {RESET}{FROST_GRAY}Python {py_ver}{RESET}"))
-
-    # ── QUICK START ──
-    add_line(divider_row("QUICK START"), structural=True)
-    if card_w >= 52:
-        add_line(row(
-            f"{FROST_GHOST}try    {RESET}"
-            f"{keycap('/help')}  {keycap('/model')}  {keycap('/provider')}  {keycap('ESC')}"
-        ))
-    else:
-        add_line(row(
-            f"{keycap('/help')}{FROST_DARK} · {RESET}"
-            f"{keycap('/model')}{FROST_DARK} · {RESET}"
-            f"{keycap('ESC')}"
-        ))
+    add_line(row(f"{FROST_GHOST}◉ provider {RESET}{FROST_INDIGO}{BOLD}{provider_name}{RESET}  {key_status}"))
+    add_line(row(f"{FROST_GHOST}⌁ model    {RESET}{FROST_ICE}{model_short}{RESET}"))
+    add_line(row(f"{FROST_GHOST}◆ runtime  {RESET}{FROST_GRAY}Python {py_ver}{RESET}"))
 
     lines.append(BOT)
     struct.add(len(lines) - 1)
@@ -312,27 +300,35 @@ def print_banner(folder_path, ai_assistant):
     # Cursor now rests on the empty line right after the bottom border.
 
     # ── Aurora sweep: ice-light glides along the frost frame only ──
-    # NOTE: the breathing-room blank is printed AFTER the sweep — printing it
-    # before would put the cursor one row too far down, and every sweep frame
-    # would repaint the whole card shifted one line low, duplicating the
-    # borders and section pills over the content rows (overlap bug).
-    n = len(lines)
-    for sweep in range(5):
-        center = -0.3 + (1.6 * sweep / 4)
-        sys.stdout.write(f"\033[{n}F\r")
-        for i, ln in enumerate(lines):
-            if i in struct:
-                ln = shimmer_gradient(ln, (71, 85, 105), (129, 140, 248), center=center)
-            sys.stdout.write(clip_line(ln, term_width - 1) + "\n")
-        sys.stdout.flush()
-        time.sleep(0.05)
-    print()  # breathing room — after the sweep so cursor math stays anchored
+    fast_mode = os.environ.get("KLYRO_FAST") == "1"
+    if not fast_mode:
+        n = len(lines)
+        for sweep in range(3):
+            center = -0.3 + (1.6 * sweep / 2)
+            sys.stdout.write(f"\033[{n}F\r")
+            for i, ln in enumerate(lines):
+                if i in struct:
+                    ln = shimmer_gradient(ln, (71, 85, 105), (129, 140, 248), center=center)
+                sys.stdout.write(clip_line(ln, term_width - 1) + "\n")
+            sys.stdout.flush()
+            time.sleep(0.015)
+    print()  # breathing room
 
 
 def play_startup_animation(folder_path, ai_assistant):
     """Lively startup intro: gradient logo + ice-light shimmer sweep and micro-step ticker."""
-    files = file_manager.list_daftar_file(folder_path)
-    os.system("cls" if sys.platform == "win32" else "clear")
+    files = getattr(ai_assistant, "daftar_file", None)
+    if files is None:
+        files = file_manager.list_daftar_file(folder_path)
+
+    # Full terminal clear: wipes both viewport and scrollback history
+    if sys.platform == "win32":
+        try:
+            os.system("cls")
+        except Exception:
+            pass
+    sys.stdout.write("\033[3J\033[H\033[2J")
+    sys.stdout.flush()
 
     logo_lines = [
         "██╗  ██╗██╗  ██╗   ██╗██████╗  ██████╗ ",
@@ -351,6 +347,7 @@ def play_startup_animation(folder_path, ai_assistant):
 
     start_c, end_c = palette_shifts[0]
     term_width = shutil.get_terminal_size(fallback=(80, 24)).columns
+    fast_mode = os.environ.get("KLYRO_FAST") == "1"
     print()
     if term_width >= 45:
         for line in logo_lines:
@@ -358,50 +355,53 @@ def play_startup_animation(folder_path, ai_assistant):
         sys.stdout.flush()
 
         # ── Nordic shimmer sweep: an ice-light band glides across the logo ──
-        for sweep in range(7):
-            center = -0.35 + (1.7 * sweep / 6)
-            sys.stdout.write("\033[6F\r")
-            for line in logo_lines:
-                sys.stdout.write(
-                    "  " + shimmer_gradient(
-                        line, start_c, end_c,
-                        center=center, highlight_rgb=(224, 247, 255),
-                    ) + "\n"
-                )
-            sys.stdout.flush()
-            time.sleep(0.05)
+        if not fast_mode:
+            for sweep in range(3):
+                center = -0.35 + (1.7 * sweep / 2)
+                sys.stdout.write("\033[6F\r")
+                for line in logo_lines:
+                    sys.stdout.write(
+                        "  " + shimmer_gradient(
+                            line, start_c, end_c,
+                            center=center, highlight_rgb=(224, 247, 255),
+                        ) + "\n"
+                    )
+                sys.stdout.flush()
+                time.sleep(0.015)
 
         tagline = f"  {FROST_DARK}Autonomous Agentic CLI Coding Assistant • v2.5{RESET}"
     else:
         # Compact title for narrow mobile/Termux screens
-        print("  " + gradient_text("⚡ K L Y R O   C L I ⚡", start_c, end_c))
+        print("  " + gradient_text("⌁ K L Y R O   C L I ⌁", start_c, end_c))
         tagline = f"  {FROST_DARK}Autonomous Agentic CLI • v2.5{RESET}"
     print(tagline)
     print()
 
     # Step 1: Runtime
-    spinner_glyphs = ["⠋", "⠙", "⠹", "⠸"]
-    for g in spinner_glyphs:
-        sys.stdout.write(clip_line(f"\r  {FROST_CYAN}{g}{RESET} {FROST_GRAY}Initializing Nordic runtime environment...{RESET}\033[K", term_width - 1))
-        sys.stdout.flush()
-        time.sleep(0.02)
+    if not fast_mode:
+        for g in ["⠋", "⠙"]:
+            sys.stdout.write(clip_line(f"\r  {FROST_CYAN}{g}{RESET} {FROST_GRAY}Initializing Nordic runtime environment...{RESET}\033[K", term_width - 1))
+            sys.stdout.flush()
+            time.sleep(0.01)
     sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Nordic runtime active{RESET}\033[K\n", term_width - 1))
 
     # Step 2: Indexing
-    for g in spinner_glyphs:
-        sys.stdout.write(clip_line(f"\r  {FROST_AQUA}{g}{RESET} {FROST_GRAY}Indexing workspace files & project context...{RESET}\033[K", term_width - 1))
-        sys.stdout.flush()
-        time.sleep(0.02)
+    if not fast_mode:
+        for g in ["⠋", "⠙"]:
+            sys.stdout.write(clip_line(f"\r  {FROST_AQUA}{g}{RESET} {FROST_GRAY}Indexing workspace files & project context...{RESET}\033[K", term_width - 1))
+            sys.stdout.flush()
+            time.sleep(0.01)
     sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Indexed {BOLD}{len(files)}{RESET} {FROST_GRAY}files in workspace{RESET}\033[K\n", term_width - 1))
 
     # Step 3: AI Provider Link
     provider_name = ai_assistant.provider.upper()
     model_name = ai_assistant.current_model or (MODEL_KECIL if ai_assistant.provider == "gemini" else GROQ_MODEL_CEPAT)
     has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
-    for g in spinner_glyphs:
-        sys.stdout.write(clip_line(f"\r  {FROST_INDIGO}{g}{RESET} {FROST_GRAY}Checking AI neural engine ({provider_name})...{RESET}\033[K", term_width - 1))
-        sys.stdout.flush()
-        time.sleep(0.02)
+    if not fast_mode:
+        for g in ["⠋", "⠙"]:
+            sys.stdout.write(clip_line(f"\r  {FROST_INDIGO}{g}{RESET} {FROST_GRAY}Checking AI neural engine ({provider_name})...{RESET}\033[K", term_width - 1))
+            sys.stdout.flush()
+            time.sleep(0.01)
     if has_key:
         sys.stdout.write(clip_line(f"\r  {FROST_MINT}✔{RESET} {FROST_GRAY}Neural engine ready:{RESET} {FROST_INDIGO}{BOLD}{provider_name}{RESET} {FROST_DARK}({model_name}){RESET}\033[K\n", term_width - 1))
     else:

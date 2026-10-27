@@ -74,7 +74,7 @@ class CodeBlockBuffer:
     while code lines are buffered.
     """
 
-    def __init__(self, live_counter: bool = False):
+    def __init__(self, live_counter: bool = False, syntax_highlight: bool = False):
         self._hold: str = ""          # partial-line buffer
         self._in_fence: bool = False
         self._fence_tick_len: int = 0
@@ -84,6 +84,7 @@ class CodeBlockBuffer:
         self._inner_depth: int = 0    # depth of nested inner fences (e.g. ```bash inside markdown)
         self._placeholder_shown: bool = False
         self._live_counter: bool = live_counter
+        self._syntax_highlight: bool = syntax_highlight
         self._frame_idx: int = 0
 
     # ── Public API ────────────────────────────────────────────────
@@ -180,8 +181,8 @@ class CodeBlockBuffer:
                 # Write placeholder WITHOUT \n so cursor stays on same line;
                 # \r allows the reveal step to overwrite it cleanly.
                 if self._live_counter:
-                    return _clip(f"  {shimmer_text('⚡ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r")
-                return f"  {FROST_DARK}⏳ Generating {lang}...{RESET}\r"
+                    return _clip(f"  {shimmer_text('⌁ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r")
+                return f"  {FROST_DARK}◔ Generating {lang}...{RESET}\r"
 
             # ── We are inside a fence ─────────────────────────────
             if tchar == self._fence_tick_char and tlen >= self._fence_tick_len:
@@ -218,9 +219,9 @@ class CodeBlockBuffer:
                         self._placeholder_shown = True
                         lang = (info.split(":")[0] if info else "code") or "code"
                         if self._live_counter:
-                            result_parts.append(_clip(f"  {shimmer_text('⚡ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r"))
+                            result_parts.append(_clip(f"  {shimmer_text('⌁ Generating', center=0.0)} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[0 lines]{RESET}\r"))
                         else:
-                            result_parts.append(f"  {FROST_DARK}⏳ Generating {lang}...{RESET}\r")
+                            result_parts.append(f"  {FROST_DARK}◔ Generating {lang}...{RESET}\r")
                         return "".join(result_parts)
                     else:
                         # Inner language fence (e.g. ```bash inside a README block)
@@ -241,7 +242,7 @@ class CodeBlockBuffer:
                 lang = (self._fence_info.split(":")[0] if self._fence_info else "code") or "code"
                 count = len(self._code_lines)
                 band = shimmer_text(
-                    "⚡ Generating",
+                    "⌁ Generating",
                     center=((self._frame_idx % 14) / 10.0) - 0.2,
                 )
                 return _clip(f"\r  {FROST_ICE}{spin}{RESET} {band} {FROST_ICE}{lang}{RESET}{FROST_DARK}...{RESET} {FROST_DARK}[{count} lines]{RESET}\033[K")
@@ -258,7 +259,17 @@ class CodeBlockBuffer:
             f"  {FROST_CYAN}━━━ {BOLD}{info}{RESET}"
             f"{FROST_CYAN} {'━' * bar_len}{RESET}\n"
         )
-        code_body = "".join(self._code_lines)
+        if self._syntax_highlight:
+            try:
+                import syntax_highlighter
+                lang = (info.split(":")[0] if info else "python") or "python"
+                hl_lines = syntax_highlighter.highlight_code_block(self._code_lines, lang=lang)
+                code_body = "".join(hl_lines)
+            except Exception:
+                code_body = "".join(self._code_lines)
+        else:
+            code_body = "".join(self._code_lines)
+
         if truncated:
             footer = f"  {FROST_DARK}{'─' * 30} (stream truncated){RESET}\n{FROST_WHITE}"
         else:
@@ -375,7 +386,7 @@ class ThinkingStreamHandler:
                     self.line_started = False
                     self.buffer = self.buffer[idx + tag_len:]
                     header = (
-                        f"\n  {FROST_DARK}╭─{RESET} {FROST_ICE}🧠 Thinking Process{RESET} "
+                        f"\n  {FROST_DARK}╭─{RESET} {FROST_ICE}◈ Thinking Process{RESET} "
                         f"{FROST_DARK}{'─' * 40}{RESET}\n"
                     )
                     out.append(header)

@@ -1,4 +1,4 @@
-﻿"""
+"""
 tests/test_model_discovery.py - Unit Tests for Dynamic Live Model Discovery & Dead Model Self-Healing
 
 Covers:
@@ -71,11 +71,11 @@ class TestDeadModelManager:
         assert dead_mgr.is_dead("groq", "some-model")
 
     def test_evict_writes_to_disk(self, dead_mgr, tmp_dead_file):
-        dead_mgr.evict("mistral", "old-model-v1", "Decommissioned")
+        dead_mgr.evict("openai", "old-model-v1", "Decommissioned")
         with open(tmp_dead_file, "r") as f:
             data = json.load(f)
-        assert "mistral:old-model-v1" in data
-        assert data["mistral:old-model-v1"]["reason"] == "Decommissioned"
+        assert "openai:old-model-v1" in data
+        assert data["openai:old-model-v1"]["reason"] == "Decommissioned"
 
     def test_reload_persists_across_instances(self, tmp_dead_file):
         mgr1 = DeadModelManager(file_path=tmp_dead_file)
@@ -85,10 +85,10 @@ class TestDeadModelManager:
 
     def test_clear_removes_all(self, dead_mgr):
         dead_mgr.evict("groq", "model-a")
-        dead_mgr.evict("mistral", "model-b")
+        dead_mgr.evict("openai", "model-b")
         dead_mgr.clear()
         assert not dead_mgr.is_dead("groq", "model-a")
-        assert not dead_mgr.is_dead("mistral", "model-b")
+        assert not dead_mgr.is_dead("openai", "model-b")
         assert dead_mgr.get_all_dead() == {}
 
     def test_evict_bad_input_returns_false(self, dead_mgr):
@@ -105,9 +105,9 @@ class TestDeadModelManager:
 
     def test_evict_records_timestamp(self, dead_mgr):
         before = time.time()
-        dead_mgr.evict("mistral", "stale-model")
+        dead_mgr.evict("openai", "stale-model")
         after = time.time()
-        entry = dead_mgr.get_all_dead().get("mistral:stale-model", {})
+        entry = dead_mgr.get_all_dead().get("openai:stale-model", {})
         assert before <= entry.get("evicted_at", 0) <= after
 
 
@@ -141,23 +141,23 @@ class TestLiveModelDiscovery:
 
     def test_fresh_cache_not_refetched(self, discovery):
         seeded = [{"id": "cached-model", "desc": "cached"}]
-        discovery._cache["mistral"] = {
+        discovery._cache["openai"] = {
             "timestamp": time.time(),
             "models": seeded,
         }
         with patch.object(discovery, "_fetch_from_provider") as mock_fetch:
-            result = discovery.get_models("mistral")
+            result = discovery.get_models("openai")
             mock_fetch.assert_not_called()
         assert result == seeded
 
     def test_stale_cache_triggers_refetch(self, discovery):
-        discovery._cache["mistral"] = {
+        discovery._cache["openai"] = {
             "timestamp": time.time() - CACHE_TTL_SECONDS - 60,
             "models": [{"id": "old-model", "desc": "old"}],
         }
         new_models = [{"id": "new-model", "desc": "new"}]
         with patch.object(discovery, "_fetch_from_provider", return_value=new_models):
-            result = discovery.get_models("mistral")
+            result = discovery.get_models("openai")
         assert result == new_models
 
     def test_force_refresh_bypasses_fresh_cache(self, discovery):
@@ -243,6 +243,41 @@ class TestLiveModelDiscovery:
         assert "llama3.2:latest" in ids
         assert "deepseek-coder:7b" in ids
 
+    def test_gemini_models_fetched(self, discovery):
+        raw_data = {
+            "models": [
+                {
+                    "name": "models/gemini-2.5-flash",
+                    "displayName": "Gemini 2.5 Flash",
+                    "supportedGenerationMethods": ["generateContent"],
+                    "inputTokenLimit": 1048576,
+                },
+                {
+                    "name": "models/text-embedding-004",
+                    "displayName": "Text Embedding 004",
+                    "supportedGenerationMethods": ["embedContent"],
+                },
+            ]
+        }
+        with patch("urllib.request.urlopen") as mock_open:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(raw_data).encode()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_open.return_value = mock_resp
+            result = discovery._fetch_gemini_models("test-api-key")
+        ids = [m["id"] for m in result]
+        assert "gemini-2.5-flash" in ids
+        assert "text-embedding-004" not in ids
+
+    def test_sync_all_providers(self, discovery):
+        with patch.object(discovery, "get_models", return_value=[{"id": "m1", "desc": "d1"}]):
+            res = discovery.sync_all_providers(force_refresh=True)
+            assert isinstance(res, dict)
+            assert "custom" in res
+            assert res["custom"] == [{"id": "m1", "desc": "d1"}]
+
+
 
 # ----------------------------------------------------------------
 # 3. SmartRouter - dead model skipping
@@ -326,3 +361,38 @@ class TestGetProviderModels:
     def test_get_models_list_alias(self):
         import provider_manager as pm
         assert pm.get_models_list is pm.get_provider_models
+
+
+# ----------------------------------------------------------------
+# 5. evict() must not mutate the process-global static catalog
+# ----------------------------------------------------------------
+
+class TestEvictKeepsCatalogIntact:
+
+    def test_evict_does_not_remove_models_from_global_catalog(self, dead_mgr):
+        """Regression: evict() used to rewrite PROVIDER_CATALOG[prov]["models"]
+        in place, permanently deleting entries for the rest of the process
+        (and leaking across tests). Dead models are hidden at read time via
+        is_dead() instead."""
+        import provider_manager as pm
+
+        groq_models = pm.PROVIDER_CATALOG.get("groq", {}).get("models", [])
+        assert groq_models, "groq static catalog must not be empty"
+        before = [dict(m) for m in groq_models]
+
+        dead_mgr.evict("groq", before[0]["id"], "unit-test eviction")
+
+        after = pm.PROVIDER_CATALOG.get("groq", {}).get("models", [])
+        assert [dict(m) for m in after] == before, (
+            "DeadModelManager.evict() mutated the global PROVIDER_CATALOG"
+        )
+
+    def test_clear_leaves_no_residue_in_catalog(self, dead_mgr):
+        """evict -> clear must leave no residue in the static catalog."""
+        import provider_manager as pm
+
+        before = [dict(m) for m in pm.PROVIDER_CATALOG.get("groq", {}).get("models", [])]
+        dead_mgr.evict("groq", before[0]["id"], "unit-test")
+        dead_mgr.clear()
+        after = pm.PROVIDER_CATALOG.get("groq", {}).get("models", [])
+        assert [dict(m) for m in after] == before

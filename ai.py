@@ -57,7 +57,7 @@ QUOTA_SIGNALS_OPENAI = [
 # ─────────────────────────────────────────────────────────────────
 def build_system_prompt(folder_path: str, konteks_str: str) -> str:
     return (
-        "You are Klyro AI, a fast, autonomous agentic CLI coding assistant similar to Claude Code running inside the user's terminal.\n"
+        "You are Klyro AI, an elite autonomous agentic CLI coding assistant and principal software engineer running inside the user's terminal.\n"
         "You HAVE FULL PERMISSION to execute file and shell operations directly on the user's project.\n\n"
         "## DIRECT EXECUTION CAPABILITIES\n"
         "When the user requests any of the following operations, execute them directly:\n"
@@ -93,6 +93,15 @@ def build_system_prompt(folder_path: str, konteks_str: str) -> str:
         "             python main.py\n"
         "             ```\n"
         "             ````\n\n"
+        "## CODE QUALITY & ENGINEERING EXCELLENCE\n"
+        "1. NO LAZINESS / COMPLETE CODE: NEVER use placeholders like '// TODO: implement later', '/* ...rest of code unchanged... */', or omitted function bodies. Always write 100% complete, runnable, and syntactically valid code.\n"
+        "2. PRESERVE EXISTING CODE: Respect existing architecture, styling, type annotations, imports, and docstrings. Do not introduce breaking API changes unless explicitly instructed.\n"
+        "3. IDIOMATIC & ROBUST: Write modern, idiomatic code with defensive error handling, boundary checks, and proper typing.\n\n"
+        "## SYSTEMATIC DEBUGGING METHODOLOGY\n"
+        "When diagnosing errors, stack traces, or broken features:\n"
+        "1. ROOT CAUSE: Briefly identify the exact root cause of the bug (e.g. state mutation, null pointer, race condition, syntax error).\n"
+        "2. SURGICAL FIX: Make targeted, minimal modifications to fix the problem without destabilizing unaffected components.\n"
+        "3. VERIFICATION: Suggest or execute the exact shell command to run tests or verify that the bug is resolved.\n\n"
         "## IMPORTANT RULES\n"
         "- NEVER say 'I cannot modify files' or ask the user to run commands manually if you can perform them directly.\n"
         "- Keep answers concise, helpful, and focused on clean code.\n"
@@ -164,8 +173,12 @@ class GeminiAssistant:
         total_karakter = len(konteks_str)
 
         if force_model:
-            self.current_model = force_model
-            info = f"Manual: {force_model}"
+            if force_model.lower() in ("auto", "copilot", "default"):
+                self.current_model = MODEL_KECIL
+                info = "Mode: Auto Routing (Copilot)"
+            else:
+                self.current_model = force_model
+                info = f"Manual: {force_model}"
         elif total_karakter > AMBANG_BATAS_KARAKTER or jumlah_file > AMBANG_BATAS_JUMLAH_FILE:
             self.current_model = MODEL_BESAR
             info = "Mode: Proyek Besar"
@@ -180,12 +193,18 @@ class GeminiAssistant:
             _, types = _import_genai()
             self.chat = client.chats.create(
                 model=self.current_model,
-                config=types.GenerateContentConfig(system_instruction=system_prompt)
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.2
+                )
             )
             return True, info
         except ImportError as e:
             return False, str(e)
         except Exception as e:
+            err = str(e).lower()
+            if any(s in err for s in ["404", "not found", "is not found for api version", "does not exist", "unknown model"]):
+                raise ModelUnavailable("gemini", self.current_model, str(e))
             return False, friendly(f"Failed to initialize Gemini ({self.current_model})", e)
 
     def tanya(self, pertanyaan: str) -> str:
@@ -197,6 +216,8 @@ class GeminiAssistant:
             err = str(e).lower()
             if any(s in err for s in QUOTA_SIGNALS_GEMINI):
                 raise QuotaExhausted("gemini", str(e))
+            if any(s in err for s in ["404", "not found", "is not found for api version", "does not exist", "unknown model"]):
+                raise ModelUnavailable("gemini", self.current_model, str(e))
             return f"[Gemini Error] {friendly('Something went wrong', e)}"
 
     def tanya_stream(self, pertanyaan: str):
@@ -215,6 +236,8 @@ class GeminiAssistant:
             err = str(e).lower()
             if any(s in err for s in QUOTA_SIGNALS_GEMINI):
                 raise QuotaExhausted("gemini", str(e))
+            if any(s in err for s in ["404", "not found", "is not found for api version", "does not exist", "unknown model"]):
+                raise ModelUnavailable("gemini", self.current_model, str(e))
             raise RuntimeError(f"[Gemini Error] {friendly('Something went wrong', e)}")
 
     def reset(self):
@@ -254,11 +277,17 @@ class OpenAICompatibleAssistant:
 
     def init_chat(self, folder_path: str, konteks_str: str, jumlah_file: int, force_model=None):
         self._sync_config()
+        cat = provider_manager.PROVIDER_CATALOG.get(self.provider_id, {})
         if force_model:
-            self.current_model = force_model
+            if force_model.lower() in ("auto", "copilot", "default"):
+                self.current_model = cat.get("default_model", "")
+            else:
+                self.current_model = force_model
+        elif self.current_model and self.current_model.lower() in ("auto", "copilot", "default"):
+            self.current_model = cat.get("default_model", "")
 
         # Truncate context based on provider capacity
-        LARGE_CONTEXT = ["deepseek", "openai", "mistral", "openrouter"]
+        LARGE_CONTEXT = ["deepseek", "openai", "openrouter"]
         MEDIUM_CONTEXT = ["cerebras"]
         if self.provider_id in LARGE_CONTEXT:
             max_chars = 48_000
@@ -335,11 +364,18 @@ class OpenAICompatibleAssistant:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
+        user_msg = self.history[-1]["content"].lower() if self.history else ""
+        is_coding_task = any(kw in user_msg for kw in [
+            "buat", "code", "kode", "function", "fungsi", "debug", "error", "fix",
+            "refactor", "test", "patch", "implement", "class", "script", "file"
+        ])
+        temperature = 0.15 if is_coding_task else 0.3
+
         payload = {
             "model": self.current_model,
             "messages": messages,
             "stream": True,
-            "temperature": 0.3
+            "temperature": temperature
         }
 
         try:
@@ -468,6 +504,206 @@ class OpenAICompatibleAssistant:
         self.system_prompt = ""
 
 
+# ─────────────────────────────────────────────────────────────────
+# ANTHROPIC CLAUDE ASSISTANT
+# ─────────────────────────────────────────────────────────────────
+class ClaudeAssistant:
+    def __init__(self):
+        self.provider_id = "claude"
+        self.current_model = "claude-3-7-sonnet-20250219"
+        self.history = []
+        self.system_prompt = ""
+        self.api_key = ""
+        self.context_truncated = False
+        self.fully_sent_files = set()
+
+    def _sync_config(self):
+        cat = provider_manager.PROVIDER_CATALOG.get("claude", {})
+        cfg = provider_manager.load_config()
+        self.api_key = provider_manager.get_api_key("claude") or os.getenv("ANTHROPIC_API_KEY", os.getenv("CLAUDE_API_KEY", ""))
+        if not self.current_model:
+            self.current_model = cfg.get("active_models", {}).get("claude", cat.get("default_model", "claude-3-7-sonnet-20250219"))
+
+    def init_chat(self, folder_path: str, konteks_str: str, jumlah_file: int, force_model=None):
+        self._sync_config()
+        cat = provider_manager.PROVIDER_CATALOG.get("claude", {})
+        if force_model:
+            if force_model.lower() in ("auto", "copilot", "default"):
+                self.current_model = cat.get("default_model", "claude-3-7-sonnet-20250219")
+            else:
+                self.current_model = force_model
+        elif self.current_model and self.current_model.lower() in ("auto", "copilot", "default"):
+            self.current_model = cat.get("default_model", "claude-3-7-sonnet-20250219")
+
+        # Claude has a massive 200,000 token context (~800,000 characters)
+        max_chars = 300_000
+        if len(konteks_str) > max_chars:
+            konteks_terpotong = konteks_str[:max_chars]
+            catatan = (
+                f"\n\n[⚠️ CATATAN: Konteks proyek dipotong ke {max_chars} karakter "
+                f"untuk efisiensi token. Total asli: {len(konteks_str)} karakter.]"
+            )
+            konteks_final = konteks_terpotong + catatan
+            self.context_truncated = True
+        else:
+            konteks_final = konteks_str
+            self.context_truncated = False
+
+        self.fully_sent_files = set()
+        effective_cutoff = max_chars if self.context_truncated else len(konteks_str)
+        file_markers = list(re.finditer(r"--- FILE: (.+?) ---\n", konteks_str))
+        for i, m in enumerate(file_markers):
+            next_marker_start = file_markers[i + 1].start() if i + 1 < len(file_markers) else len(konteks_str)
+            if next_marker_start <= effective_cutoff:
+                self.fully_sent_files.add(m.group(1).strip())
+
+        self.system_prompt = build_system_prompt(folder_path, konteks_final)
+        self.history = []
+        return True, f"Model: {self.current_model} (CLAUDE)"
+
+    def tanya(self, pertanyaan: str) -> str:
+        chunks = []
+        for chunk in self.tanya_stream(pertanyaan):
+            chunks.append(chunk)
+        return "".join(chunks)
+
+    def tanya_stream(self, pertanyaan: str):
+        self._sync_config()
+        if not self.api_key:
+            yield "[CLAUDE Error] ANTHROPIC_API_KEY is not set. Type /provider to enter your API key."
+            return
+
+        self.history.append({"role": "user", "content": pertanyaan})
+        MAX_HISTORY_MESSAGES = 12
+        if len(self.history) > MAX_HISTORY_MESSAGES:
+            self.history = self.history[-MAX_HISTORY_MESSAGES:]
+
+        messages_to_send = list(self.history)
+        while messages_to_send and messages_to_send[0]["role"] != "user":
+            messages_to_send.pop(0)
+        if not messages_to_send:
+            messages_to_send = [{"role": "user", "content": pertanyaan}]
+
+        endpoint = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "User-Agent": "Mozilla/5.0 KlyroCLI/2.5"
+        }
+
+        user_msg = self.history[-1]["content"].lower() if self.history else ""
+        is_coding_task = any(kw in user_msg for kw in [
+            "buat", "code", "kode", "function", "fungsi", "debug", "error", "fix",
+            "refactor", "test", "patch", "implement", "class", "script", "file"
+        ])
+        temperature = 0.2 if is_coding_task else 0.4
+
+        payload = {
+            "model": self.current_model,
+            "max_tokens": 8192,
+            "system": self.system_prompt,
+            "messages": messages_to_send,
+            "stream": True,
+            "temperature": temperature
+        }
+
+        try:
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST"
+            )
+            full_reply = []
+            in_reasoning_mode = False
+            with urllib.request.urlopen(req, timeout=120) as response:
+                buffer = ""
+                for raw_chunk in response:
+                    line = raw_chunk.decode("utf-8", errors="replace")
+                    buffer += line
+                    while "\n" in buffer:
+                        current_line, buffer = buffer.split("\n", 1)
+                        current_line = current_line.strip()
+                        if current_line.startswith("data:"):
+                            data_str = current_line[5:].strip()
+                            if not data_str or data_str == "[DONE]":
+                                break
+                            try:
+                                data_json = json.loads(data_str)
+                                ev_type = data_json.get("type")
+                                if ev_type == "content_block_delta":
+                                    delta = data_json.get("delta", {})
+                                    d_type = delta.get("type")
+                                    if d_type == "thinking_delta":
+                                        th_tok = delta.get("thinking", "")
+                                        if th_tok:
+                                            if not in_reasoning_mode:
+                                                in_reasoning_mode = True
+                                                full_reply.append("<think>")
+                                                yield "<think>"
+                                            full_reply.append(th_tok)
+                                            yield th_tok
+                                    elif d_type == "text_delta":
+                                        token = delta.get("text", "")
+                                        if token:
+                                            if in_reasoning_mode:
+                                                in_reasoning_mode = False
+                                                full_reply.append("</think>\n\n")
+                                                yield "</think>\n\n"
+                                            full_reply.append(token)
+                                            yield token
+                                elif ev_type == "error":
+                                    err_obj = data_json.get("error", {})
+                                    err_msg = err_obj.get("message", str(err_obj))
+                                    raise RuntimeError(f"[CLAUDE Stream Error]: {err_msg}")
+                            except (RuntimeError, QuotaExhausted, ModelUnavailable):
+                                raise
+                            except Exception:
+                                pass
+
+            if in_reasoning_mode:
+                in_reasoning_mode = False
+                full_reply.append("</think>\n\n")
+                yield "</think>\n\n"
+            self.history.append({"role": "assistant", "content": "".join(full_reply)})
+
+        except urllib.error.HTTPError as e:
+            if self.history and self.history[-1]["role"] == "user":
+                self.history.pop()
+            err_body = e.read().decode("utf-8", errors="ignore")
+            clean_msg = err_body
+            try:
+                err_data = json.loads(err_body)
+                if isinstance(err_data, dict):
+                    clean_msg = err_data.get("error", {}).get("message", err_body)
+            except Exception:
+                pass
+
+            if e.code in (413, 429) or "rate_limit" in err_body.lower():
+                raise QuotaExhausted("claude", f"HTTP {e.code}: {clean_msg}")
+            if e.code == 404 or "not_found" in err_body.lower():
+                raise ModelUnavailable("claude", self.current_model, clean_msg)
+            raise RuntimeError(f"[CLAUDE HTTP {e.code} Error]: {clean_msg}")
+
+        except urllib.error.URLError as e:
+            if self.history and self.history[-1]["role"] == "user":
+                self.history.pop()
+            raise RuntimeError(f"[CLAUDE Connection Error] {friendly('Could not reach Anthropic', e)}")
+        except TimeoutError:
+            if self.history and self.history[-1]["role"] == "user":
+                self.history.pop()
+            raise RuntimeError("[CLAUDE Timeout] Anthropic API did not respond within 120 seconds.")
+        except Exception as e:
+            if self.history and self.history[-1]["role"] == "user":
+                self.history.pop()
+            raise RuntimeError(f"[CLAUDE Error] {friendly('Something went wrong', e)}")
+
+    def reset(self):
+        self.history = []
+        self.system_prompt = ""
+
+
 # Alias lama untuk kompatibilitas
 GroqAssistant = lambda: OpenAICompatibleAssistant("groq")
 
@@ -498,7 +734,10 @@ def check_context_preflight(konteks_str: str, provider: str, model: str = "") ->
     elif prov == "cerebras":
         if chars > 32_000:
             return f"Project context ({chars:,} chars) exceeds CEREBRAS limit (32,000 chars) — context will be truncated."
-    elif prov in ["deepseek", "mistral", "openai", "openrouter"]:
+    elif prov in ["claude", "anthropic"]:
+        if chars > 300_000:
+            return f"Project context ({chars:,} chars) exceeds CLAUDE limit (300,000 chars) — context will be truncated."
+    elif prov in ["deepseek", "openai", "openrouter"]:
         if chars > 48_000:
             return f"Project context ({chars:,} chars) exceeds {prov.upper()} limit (48,000 chars) — context will be truncated."
     elif prov == "gemini":
@@ -513,15 +752,15 @@ def check_context_preflight(konteks_str: str, provider: str, model: str = "") ->
 # ─────────────────────────────────────────────────────────────────
 class AIAssistant:
     """
-    Facade yang menggabungkan Gemini, Groq, DeepSeek, OpenAI, dan Custom Provider.
+    Facade yang menggabungkan Gemini, Claude, Groq, DeepSeek, OpenAI, dan Custom Provider.
     """
     def __init__(self):
         self.gemini = GeminiAssistant()
+        self.claude = ClaudeAssistant()
         self.openai_compatibles = {
             "groq":       OpenAICompatibleAssistant("groq"),
             "cerebras":   OpenAICompatibleAssistant("cerebras"),
             "openrouter": OpenAICompatibleAssistant("openrouter"),
-            "mistral":    OpenAICompatibleAssistant("mistral"),
             "deepseek":   OpenAICompatibleAssistant("deepseek"),
             "openai":     OpenAICompatibleAssistant("openai"),
             "custom":     OpenAICompatibleAssistant("custom"),
@@ -534,11 +773,16 @@ class AIAssistant:
         self.jumlah_file = 0
         self.daftar_file = []  # semua path relatif project (dari list_daftar_file), dipakai untuk deteksi file yang disebut user tapi tidak masuk konteks
         self.smart_router = get_smart_router()
-        self.auto_route = True
+        self.target_model = active_model
+        self.auto_route = (active_model.lower() in ("auto", "copilot", "default")) if active_model else True
         self._user_locked_provider = False
 
-        self.current_model = active_model
-        self.model_info = f"{self.provider.upper()} • {self.current_model}"
+        cat_default = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("default_model", "")
+        self.current_model = cat_default if (active_model or "").lower() in ("auto", "copilot", "default") else (active_model or cat_default)
+        if self.auto_route and (active_model or "").lower() in ("auto", "copilot", "default"):
+            self.model_info = f"{self.provider.upper()} • Auto ({self.current_model})"
+        else:
+            self.model_info = f"{self.provider.upper()} • {self.current_model}"
         self.last_route_reason = "Smart Router (Ready)"
         self.routing_trail = []
         self.thinking_enabled = True
@@ -552,6 +796,8 @@ class AIAssistant:
     def _active(self):
         if self.provider == "gemini":
             return self.gemini
+        if self.provider in ("claude", "anthropic"):
+            return self.claude
         if self.provider in self.openai_compatibles:
             return self.openai_compatibles[self.provider]
         # Fallback ke groq jika provider tidak dikenal
@@ -600,8 +846,12 @@ class AIAssistant:
         return check_context_preflight(self.konteks, self.provider, self.current_model)
 
     def _sync_info(self):
-        self.current_model = self._active.current_model or provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("default_model", "")
-        self.model_info = f"{self.provider.upper()} • {self.current_model}"
+        active_actual = self._active.current_model or provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("default_model", "")
+        self.current_model = active_actual
+        if getattr(self, "auto_route", False) and getattr(self, "target_model", "") in ("auto", "copilot", "default"):
+            self.model_info = f"{self.provider.upper()} • Auto ({active_actual})"
+        else:
+            self.model_info = f"{self.provider.upper()} • {self.current_model}"
 
     def switch_provider(self, new_provider: str, force_model: Optional[str] = None, custom_url: Optional[str] = None, api_key: Optional[str] = None):
         """Ganti provider aktif dan simpan ke config."""
@@ -618,41 +868,73 @@ class AIAssistant:
 
         self.provider = new_provider
         self._user_locked_provider = True
-        self.auto_route = False
 
-        if force_model:
-            self.current_model = force_model
+        if force_model and force_model.lower() in ("auto", "copilot", "default"):
+            self.auto_route = True
+            self.target_model = "auto"
+            cat_default = provider_manager.PROVIDER_CATALOG.get(new_provider, {}).get("default_model", "")
+            init_model = cat_default
         else:
-            cfg = provider_manager.load_config()
-            self.current_model = (
-                cfg.get("active_models", {}).get(new_provider)
-                or provider_manager.PROVIDER_CATALOG.get(new_provider, {}).get("default_model", "")
-            )
+            self.auto_route = False
+            self.target_model = force_model
+            if force_model:
+                self.current_model = force_model
+            else:
+                cfg = provider_manager.load_config()
+                self.current_model = (
+                    cfg.get("active_models", {}).get(new_provider)
+                    or provider_manager.PROVIDER_CATALOG.get(new_provider, {}).get("default_model", "")
+                )
+            init_model = self.current_model
 
         provider_manager.set_active_provider(new_provider, self.current_model, custom_url)
 
         if self.folder_aktif:
-            self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=self.current_model)
+            self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=init_model)
 
         self._sync_info()
         prov_name = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("name", self.provider.upper())
-        self.last_route_reason = f"Manual ({prov_name})"
-        return True, f"Provider beralih ke {self.provider.upper()} ({self.current_model})"
-
-    def set_model(self, model_name: str):
-        """Ubah model pada provider aktif."""
-        self.current_model = model_name
-        provider_manager.set_active_provider(self.provider, model_name)
-        if self.folder_aktif:
-            success, info = self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=model_name)
-            self._sync_info()
-            prov_name = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("name", self.provider.upper())
+        if self.auto_route:
+            self.last_route_reason = f"Auto Routing ({prov_name})"
+            return True, f"Provider beralih ke {self.provider.upper()} (Auto Routing • Copilot Mode)"
+        else:
             self.last_route_reason = f"Manual ({prov_name})"
-            return success, info
-        self._sync_info()
+            return True, f"Provider beralih ke {self.provider.upper()} ({self.current_model})"
+
+    def set_model(self, model_name: str, lock_provider: Optional[bool] = None):
+        """Ubah model pada provider aktif."""
         prov_name = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("name", self.provider.upper())
-        self.last_route_reason = f"Manual ({prov_name})"
-        return True, f"Model set to {model_name}"
+        if model_name.lower() in ("auto", "copilot", "default"):
+            self.auto_route = True
+            self.target_model = "auto"
+            if lock_provider is not None:
+                self._user_locked_provider = lock_provider
+            else:
+                self._user_locked_provider = True
+            provider_manager.set_active_provider(self.provider, "auto")
+            cat_default = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get("default_model", "")
+            if self.folder_aktif:
+                self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=cat_default)
+            self._sync_info()
+            self.last_route_reason = f"Auto Routing ({prov_name})"
+            return True, f"Auto Routing (Copilot Mode) activated for {prov_name}"
+        else:
+            self.auto_route = False
+            self.target_model = model_name
+            self.current_model = model_name
+            if lock_provider is not None:
+                self._user_locked_provider = lock_provider
+            else:
+                self._user_locked_provider = True
+            provider_manager.set_active_provider(self.provider, model_name)
+            if self.folder_aktif:
+                success, info = self._active.init_chat(self.folder_aktif, self.konteks, self.jumlah_file, force_model=model_name)
+                self._sync_info()
+                self.last_route_reason = f"Manual ({prov_name})"
+                return success, info
+            self._sync_info()
+            self.last_route_reason = f"Manual ({prov_name})"
+            return True, f"Model set to {model_name}"
 
     def _route_for_task(self, pertanyaan: str) -> tuple:
         """Workload-based intelligent dynamic routing across all configured providers."""
@@ -660,7 +942,8 @@ class AIAssistant:
             prompt=pertanyaan,
             context_chars=len(self.konteks or ""),
             file_count=self.jumlah_file or 0,
-            manual_override=self.provider if self._user_locked_provider else None
+            manual_override=self.provider if self._user_locked_provider else None,
+            manual_model=getattr(self, "target_model", None)
         )
         return prov, model, reason
 
@@ -856,7 +1139,7 @@ class AIAssistant:
                     "to": next_name
                 })
                 if on_status:
-                    on_status(f"⚡ {chosen.get('name', model_id)} ({short_reason}) ➔ Rerouting ke {next_name}...")
+                    on_status(f"⌁ {chosen.get('name', model_id)} ({short_reason}) ➔ Rerouting ke {next_name}...")
             else:
                 self.routing_trail.append({
                     "from": chosen.get("name", model_id),
@@ -864,7 +1147,7 @@ class AIAssistant:
                     "to": "Fallback"
                 })
                 if on_status:
-                    on_status(f"⚡ {chosen.get('name', model_id)} ({short_reason}) ➔ Mencari fallback...")
+                    on_status(f"⌁ {chosen.get('name', model_id)} ({short_reason}) ➔ Mencari fallback...")
             # Loop continues to next attempt
 
         # Exhausted all attempts — fallback to openrouter/auto
@@ -906,7 +1189,7 @@ class AIAssistant:
             self._sync_info()
             self.last_route_reason = f"Self-Healing Fallback → {cat.get('name', next_prov)}"
             if on_status:
-                on_status(f"⚡ OpenRouter limit ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
+                on_status(f"⌁ OpenRouter limit ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
             yield from self._active.tanya_stream(pertanyaan)
             return
 
@@ -982,7 +1265,8 @@ class AIAssistant:
         self.routing_trail = []
 
         # Smart Workload-Based Auto-Routing
-        if self.auto_route and not self._user_locked_provider:
+        is_auto_active = self.auto_route and (not self._user_locked_provider or getattr(self, "target_model", "") in ("auto", "copilot", "default"))
+        if is_auto_active:
             route_provider, route_model, route_reason = self._route_for_task(pertanyaan)
             self._apply_route(route_provider, route_model)
             self.last_route_reason = route_reason
@@ -1008,7 +1292,7 @@ class AIAssistant:
 
         # ── Provider bukan OpenRouter — streaming biasa ────────────────
         prov_name = provider_manager.PROVIDER_CATALOG.get(self.provider, {}).get('name', self.provider.upper())
-        if not (self.auto_route and not self._user_locked_provider):
+        if not is_auto_active:
             self.last_route_reason = prov_name
             if on_status:
                 on_status(f"Menghubungkan ke {prov_name} ({self.current_model})...")
@@ -1067,7 +1351,7 @@ class AIAssistant:
                 self._sync_info()
                 self.last_route_reason = f"Self-Healing Fallback → {cat.get('name', next_prov)}"
                 if on_status:
-                    on_status(f"⚡ {failed_prov.upper()} rate limit ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
+                    on_status(f"⌁ {failed_prov.upper()} rate limit ➔ Auto-fallback ke {cat.get('name', next_prov)} ({next_model})...")
                 yield from self._active.tanya_stream(pertanyaan)
             else:
                 yield f"\n⚠️ Quota/error occurred for {failed_prov.upper()} and no other active provider is registered. Type /provider to choose another provider."

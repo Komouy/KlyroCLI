@@ -62,9 +62,25 @@ def list_daftar_file(folder_path):
     return sorted(file_list)
 
 
+# In-memory cache for file contents: {abs_path: (mtime, size, content)}
+_WORKSPACE_FILE_CACHE: dict[str, tuple[float, int, str]] = {}
+
+
+def clear_workspace_file_cache() -> None:
+    """Clear in-memory workspace file cache."""
+    global _WORKSPACE_FILE_CACHE
+    _WORKSPACE_FILE_CACHE.clear()
+
+
+def get_workspace_cache_stats() -> dict:
+    """Return count of cached files in memory."""
+    return {"cached_files_count": len(_WORKSPACE_FILE_CACHE)}
+
+
 def baca_semua_file(folder_path):
     """
     Membaca semua file kode yang diizinkan dan menggabungkannya menjadi teks konteks.
+    Menggunakan caching berbasis mtime & file size untuk kecepatan baca instan.
     Returns:
         konteks (str): Teks gabungan semua isi file
         file_dibaca (list): Daftar file yang berhasil dibaca
@@ -77,12 +93,13 @@ def baca_semua_file(folder_path):
     file_dilewati = []
     isi_konteks = []
     total_karakter = 0
+    context_full = False
 
     for root, dirs, files in os.walk(folder_path):
         dirs[:] = [d for d in dirs if d not in FOLDER_DIABAIKAN]
 
         for file in sorted(files):
-            if len(file_dibaca) >= 200 or total_karakter >= MAKS_TOTAL_KONTEKS:
+            if len(file_dibaca) >= 200 or total_karakter >= MAKS_TOTAL_KONTEKS or context_full:
                 break
 
             file_path = os.path.join(root, file)
@@ -93,17 +110,25 @@ def baca_semua_file(folder_path):
             if ext.lower() not in EKSTENSI_DIIZINKAN:
                 continue
 
-            # Cek ukuran file
+            # Cek ukuran file & mtime caching
             try:
-                ukuran = os.path.getsize(file_path)
+                stat = os.stat(file_path)
+                ukuran = stat.st_size
                 if ukuran > MAKS_UKURAN_FILE:
                     continue
 
-                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                    konten = f.read()
+                mtime = stat.st_mtime
+                cached = _WORKSPACE_FILE_CACHE.get(file_path)
+                if cached and cached[0] == mtime and cached[1] == ukuran:
+                    konten = cached[2]
+                else:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        konten = f.read()
+                    _WORKSPACE_FILE_CACHE[file_path] = (mtime, ukuran, konten)
 
                 panjang_konten = len(konten)
                 if total_karakter + panjang_konten > MAKS_TOTAL_KONTEKS:
+                    context_full = True
                     break
 
                 total_karakter += panjang_konten
@@ -113,7 +138,7 @@ def baca_semua_file(folder_path):
             except Exception as e:
                 file_dilewati.append((rel_path, friendly("Could not read the file", e)))
 
-        if len(file_dibaca) >= 200 or total_karakter >= MAKS_TOTAL_KONTEKS:
+        if len(file_dibaca) >= 200 or total_karakter >= MAKS_TOTAL_KONTEKS or context_full:
             break
 
     konteks_gabungan = "\n".join(isi_konteks)
@@ -241,7 +266,7 @@ def resolve_file_mentions(text: str, folder_aktif: str) -> tuple[str, list[dict]
         return text, [], missing_files
 
     header = (
-        "[📌 PINNED CONTEXT: The user explicitly referenced the following workspace files with '@'. "
+        "[⌖ PINNED CONTEXT: The user explicitly referenced the following workspace files with '@'. "
         "Prioritize these contents when responding to the user's instructions:]\n\n"
     )
     enriched_prompt = f"{header}" + "\n\n".join(pinned_blocks) + f"\n\n[USER INSTRUCTION]:\n{text}"

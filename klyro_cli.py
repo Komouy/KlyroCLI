@@ -32,7 +32,8 @@ if sys.platform == "win32":
 # ── Prompt Toolkit ────────────────────────────────────────────────────────────
 try:
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.history import InMemoryHistory
+    from prompt_toolkit.history import InMemoryHistory, FileHistory
+    from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.formatted_text import ANSI
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
@@ -107,15 +108,16 @@ def render_top_bar(folder_aktif: str, ai_assistant) -> str:
 
     prov_name = provider_manager.PROVIDER_CATALOG.get(ai_assistant.provider, {}).get("name", ai_assistant.provider.title())
     model_name = ai_assistant.current_model.split("/")[-1] if "/" in ai_assistant.current_model else ai_assistant.current_model
-    is_router = getattr(ai_assistant, "smart_router_enabled", True)
-    router_tag = f" {FROST_ICE}[auto]{RESET}" if is_router else ""
+    is_auto = getattr(ai_assistant, "auto_route", False) and (not getattr(ai_assistant, "_user_locked_provider", False) or getattr(ai_assistant, "target_model", "") in ("auto", "copilot", "default"))
+    router_tag = f" {FROST_ICE}[Auto]{RESET}" if is_auto else ""
     has_key = bool(provider_manager.get_api_key(ai_assistant.provider)) if ai_assistant.provider != "custom" else True
     key_dot = f"{FROST_MINT}●{RESET}" if has_key else f"{FROST_AMBER}○{RESET}"
+    model_display = f"Auto • {model_name}" if (is_auto and getattr(ai_assistant, "target_model", "") in ("auto", "copilot", "default")) else model_name
 
     return (
         f"  {FROST_CYAN}❄{RESET} {FROST_DARK}─{RESET} {FROST_WHITE}{BOLD}{cwd_display}{RESET}"
         f"{branch_part}"
-        f" {FROST_DARK}──{RESET} {key_dot} {FROST_CYAN}{prov_name}{router_tag}{RESET} {FROST_DARK}({model_name}){RESET}"
+        f" {FROST_DARK}──{RESET} {key_dot} {FROST_CYAN}{prov_name}{router_tag}{RESET} {FROST_DARK}({model_display}){RESET}"
     )
 
 
@@ -148,29 +150,49 @@ def render_micro_metrics(query_duration: float, full_response: str, ai_assistant
 
 
 def main():
-    ai_assistant = AIAssistant()
+    if any(arg in sys.argv for arg in ("--fast", "-q", "--quick")):
+        os.environ["KLYRO_FAST"] = "1"
+
     folder_aktif = os.getcwd()
+    ai_assistant = AIAssistant()
 
     konteks, file_dibaca, _ = file_manager.baca_semua_file(folder_aktif)
+    daftar_file = file_manager.list_daftar_file(folder_aktif)
     ai_assistant.set_folder_context(
         folder_aktif, konteks,
         jumlah_file=len(file_dibaca),
-        daftar_file=file_manager.list_daftar_file(folder_aktif),
+        daftar_file=daftar_file,
     )
     ctx_warn = ai_assistant.get_context_preflight_warning()
-    if ctx_warn:
-        print(f"  {FROST_AMBER}⚠️  Context Notice: {ctx_warn}{RESET}")
 
-    # ── Setup prompt session with autocomplete ────────────────────────────────
+    # ── Setup prompt session with autocomplete & persistent history ────────────
     _use_prompt_session = False
     prompt_session = None
     if PROMPT_TOOLKIT_AVAILABLE:
+        prompt_bindings = None
+        try:
+            prompt_bindings = KeyBindings()
+
+            @prompt_bindings.add("escape", "enter")
+            def _(event):
+                """Alt+Enter or Esc+Enter: Insert a newline for multi-line prompts."""
+                event.current_buffer.insert_text("\n")
+        except Exception:
+            prompt_bindings = None
+
+        try:
+            hist_file = session_manager.get_prompt_history_file(folder_aktif)
+            history_backend = FileHistory(hist_file)
+        except Exception:
+            history_backend = InMemoryHistory()
+
         try:
             prompt_session = PromptSession(
                 completer=KlyroCompleter(lambda: folder_aktif),
                 style=_frost_style,
                 complete_while_typing=True,
-                history=InMemoryHistory(),
+                history=history_backend,
+                key_bindings=prompt_bindings,
             )
             _use_prompt_session = True
         except Exception:
@@ -245,7 +267,7 @@ def main():
                             continue
 
                     raw_cmd = runner.wrap_script_command(raw_cmd, folder_aktif)
-                    print(f"  {FROST_CYAN}⚡ Executing shell:{RESET} {FROST_WHITE}{raw_cmd}{RESET}")
+                    print(f"  {FROST_CYAN}⌁ Executing shell:{RESET} {FROST_WHITE}{raw_cmd}{RESET}")
                     print(f"  {FROST_DARK}Interactive — type program input here. Ctrl+C to stop.{RESET}")
                     res = runner.execute_script(raw_cmd, folder_aktif, interactive=True)
                     if res.get("stdout"):
@@ -280,14 +302,14 @@ def main():
             if pinned_files:
                 for pf in pinned_files:
                     trunc_note = f" {FROST_DARK}(truncated){RESET}" if pf.get("truncated") else ""
-                    print(f"  {FROST_CYAN}📎 Pinned context:{RESET} {FROST_WHITE}@{pf['name']}{RESET} {FROST_ICE}({pf['size_kb']} KB){RESET}{trunc_note}")
+                    print(f"  {FROST_CYAN}⌖ Pinned context:{RESET} {FROST_WHITE}@{pf['name']}{RESET} {FROST_ICE}({pf['size_kb']} KB){RESET}{trunc_note}")
                 print()
 
             # Sanitize outgoing context to prevent accidental secret/credential leakage
             sanitized_prompt, redacted_secrets = security.sanitize_outgoing_context(enriched_prompt)
             if redacted_secrets:
                 types_str = ", ".join(redacted_secrets)
-                print(f"  {FROST_AMBER}🛡️  Secret Redaction:{RESET} {FROST_DARK}Protected sensitive credentials ({types_str}) before dispatch.{RESET}\n")
+                print(f"  {FROST_AMBER}❖  Secret Redaction:{RESET} {FROST_DARK}Protected sensitive credentials ({types_str}) before dispatch.{RESET}\n")
             prompt_to_send = sanitized_prompt
             max_attempts = 2
             for attempt in range(max_attempts):
@@ -306,7 +328,7 @@ def main():
                 try:
                     stripper = CommentStripper()
                     thinker  = ThinkingStreamHandler(enabled=getattr(ai_assistant, "thinking_enabled", True))
-                    code_buf = CodeBlockBuffer(live_counter=True)
+                    code_buf = CodeBlockBuffer(live_counter=True, syntax_highlight=True)
                     indenter = StreamIndenter(indent="  ")
                     if getattr(ai_assistant, "consensus_mode", False):
                         stream = ConsensusEngine(ai_assistant).query(prompt_to_send)
@@ -411,7 +433,7 @@ def main():
                             alts = [p for p in avail if p != ai_assistant.provider]
 
                         if alts:
-                            order = ["openrouter", "groq", "gemini", "cerebras", "deepseek", "mistral"]
+                            order = ["openrouter", "claude", "deepseek", "groq", "gemini", "openai"]
                             best_alt = next((c for c in order if c in alts), alts[0])
                             alt_name = provider_manager.PROVIDER_CATALOG.get(best_alt, {}).get("name", best_alt.upper())
 
@@ -430,7 +452,7 @@ def main():
                                 pass
 
                             try:
-                                rec = input(f"  {FROST_CYAN}⚡ [Auto-Recovery] Switch ke {alt_name} ({alt_model})? (Y/n):{RESET} ").strip().lower()
+                                rec = input(f"  {FROST_CYAN}⌁ [Auto-Recovery] Switch ke {alt_name} ({alt_model})? (Y/n):{RESET} ").strip().lower()
                                 if rec in ("", "y", "yes"):
                                     ai_assistant.switch_provider(best_alt, force_model=alt_model)
                                     provider_manager.set_active_provider(best_alt, alt_model)

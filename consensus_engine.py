@@ -45,19 +45,17 @@ JUDGE_PRIORITY = [
     ("gemini",    "gemini-2.5-pro"),       # lebih kuat kalau flash gagal
     ("deepseek",  "deepseek-reasoner"),
     ("openai",    "gpt-4o"),
-    ("mistral",   "mistral-large-latest"),
-    ("groq",      "llama-3.3-70b-specdec"),
-    ("cerebras",  "llama-3.3-70b"),
-    ("openrouter","deepseek/deepseek-r1:free"),
+    ("groq",      "llama-3.3-70b-versatile"),
+    ("claude",    "claude-3-7-sonnet-20250219"),
+    ("openrouter","z-ai/glm-5.2:free"),
 ]
 
 # Model flagship per provider (kandidat terkuat)
 FLAGSHIP_MODELS = {
     "gemini":     "gemini-3.6-flash",          # model valid per 2025
-    "groq":       "llama-3.3-70b-specdec",
-    "cerebras":   "llama-3.3-70b",
-    "openrouter": "deepseek/deepseek-r1:free",
-    "mistral":    "mistral-large-latest",
+    "groq":       "llama-3.3-70b-versatile",
+    "claude":     "claude-3-7-sonnet-20250219",
+    "openrouter": "z-ai/glm-5.2:free",
     "deepseek":   "deepseek-reasoner",
     "openai":     "gpt-4o",
     "custom":     None,
@@ -73,10 +71,9 @@ GEMINI_FALLBACK_PAIR = [
 # Urutan prioritas: gratis dulu, paling ringan dulu
 CLASSIFIER_PRIORITY = [
     ("gemini",    "gemini-3.6-flash"),     # gratis, reliable, akurat
-    ("cerebras",  "llama3.1-8b"),          # super cepat
+    ("claude",    "claude-3-5-haiku-20241022"), # cepat, ultra responsif
     ("groq",      "llama-3.1-8b-instant"),       # cepat, gratis
-    ("mistral",   "open-mistral-7b"),      # gratis tier
-    ("openrouter","meta-llama/llama-3.3-70b-instruct:free"),
+    ("openrouter","z-ai/glm-5.2:free"),
 ]
 
 # Prompt classifier — ringkas, binary output
